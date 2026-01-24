@@ -14,9 +14,14 @@ namespace RMPG
 	{
 	public:
 		Object2d();
+		~Object2d();
 
 		HRESULT Initialize(ID3D11Device* device, float width, float height, float coordZ);
 		HRESULT SetTexture(Texture2d* texture2d);
+
+		void Release();
+		bool IsInitialized() const;
+
 		void SetAtlas(float cols, float rows);
 		void SetMatrix(XMMATRIX mat);
 		

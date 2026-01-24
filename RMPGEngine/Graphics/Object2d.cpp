@@ -5,6 +5,11 @@ RMPG::Object2d::Object2d()
     matrix = XMMatrixIdentity();;
 }
 
+RMPG::Object2d::~Object2d()
+{
+    Release();
+}
+
 HRESULT RMPG::Object2d::Initialize(ID3D11Device* device, float width, float height, float coordZ)
 {
     Vertex v[] =
@@ -28,6 +33,16 @@ HRESULT RMPG::Object2d::SetTexture(Texture2d* texture2d)
         return E_INVALIDARG;
     this->texture = texture2d;
     return S_OK;
+}
+
+void RMPG::Object2d::Release()
+{
+    texture = nullptr;
+}
+
+bool RMPG::Object2d::IsInitialized() const
+{
+    return this->texture != texture;
 }
 
 void RMPG::Object2d::SetAtlas(float cols, float rows)

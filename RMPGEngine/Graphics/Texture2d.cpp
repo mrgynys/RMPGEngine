@@ -44,6 +44,16 @@ HRESULT RMPG::Texture2d::InitializeFromMemory(ID3D11Device* device, int width, i
 	return hr;
 }
 
+void RMPG::Texture2d::Release()
+{
+	texture.Reset();
+}
+
+bool RMPG::Texture2d::IsInitialized() const
+{
+	return texture != nullptr;
+}
+
 ID3D11ShaderResourceView* RMPG::Texture2d::Get() const
 {
 	return texture.Get();

@@ -39,55 +39,21 @@ void RMPG::Graphics::RenderFrame()
 	this->deviceContext->VSSetShader(vertexshader.GetShader(), NULL, 0);
 	this->deviceContext->PSSetShader(pixelshader.GetShader(), NULL, 0);
 
+	UpdatePerObjectBuffer();
+
+	if (!objects.empty())
+	{
+		this->deviceContext->VSSetShaderResources(0, 1, this->perObjectSRV.GetAddressOf());
+	}
+
 	UINT offset = 0;
 
 	XMMATRIX view = this->camera.GetViewMatrix();
 	XMMATRIX proj = this->camera.GetProjectionMatrix();
 
-	std::vector<XMFLOAT4X4> tmp;
-	tmp.reserve(objects.size());
-	for (int i = 0; i < objects.size(); i++)
+	for (auto& [objectId, obj] : objects)
 	{
-		XMMATRIX world = objects[i]->GetMatrix();
-		XMMATRIX wvp = XMMatrixTranspose(world * view * proj);
-		XMFLOAT4X4 f;
-		XMStoreFloat4x4(&f, wvp);
-		tmp.push_back(f);
-	}
-
-	if (!objects.empty())
-	{
-		D3D11_MAPPED_SUBRESOURCE mapped;
-		HRESULT hr = this->deviceContext->Map(this->perObjectStructuredBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-		if (FAILED(hr))
-		{
-			return;
-		}
-		memcpy(mapped.pData, tmp.data(), tmp.size() * sizeof(XMFLOAT4X4));
-		this->deviceContext->Unmap(this->perObjectStructuredBuffer.Get(), 0);
-
-		this->deviceContext->VSSetShaderResources(0, 1, this->perObjectSRV.GetAddressOf());
-	}
-
-	for (int i = 0; i < static_cast<int>(objects.size()); i++)
-	{
-		auto& obj = objects[i];
-
-		this->drawBuffer.data.objectIndex = i;
-
-		this->drawBuffer.data.uvOffset = XMFLOAT2(obj->GetCol() * obj->GetTileWidth(), obj->GetRow() * obj->GetTileHeight());
-		this->drawBuffer.data.uvScale = XMFLOAT2(obj->GetScaleU(), obj->GetScaleV());
-
-		if (!this->drawBuffer.ApplyChanges())
-			return;
-
-		this->deviceContext->VSSetConstantBuffers(0, 1, this->drawBuffer.GetAddressOf());
-		this->deviceContext->PSSetConstantBuffers(0, 1, this->drawBuffer.GetAddressOf());
-
-		this->deviceContext->PSSetShaderResources(0, 1, obj->texture->GetAddressOf());
-		this->deviceContext->IASetVertexBuffers(0, 1, obj->vertexBuffer.GetAddressOf(), obj->vertexBuffer.StridePtr(), &offset);
-		this->deviceContext->IASetIndexBuffer(indicesBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-		this->deviceContext->DrawIndexed(indicesBuffer.BufferSize(), 0, 0);
+		RenderObject(objectId, obj.get());
 	}
 
 	fpsCounter += 1;
@@ -209,10 +175,8 @@ void RMPG::Graphics::SetVSync(bool vsync)
 		this->vsync_on = 0;
 }
 
-int RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
+RMPG::ObjectID RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
 {
-	using namespace DirectX;
-
 	if (mouseX < 0 || mouseY < 0 || mouseX > this->windowWidth || mouseY > this->windowHeight)
 		return -1;
 
@@ -223,7 +187,6 @@ int RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
 	XMVECTOR farNDC = XMVectorSet(px, py, 1.0f, 1.0f);
 
 	XMMATRIX invViewProj = XMMatrixInverse(nullptr, camera.GetViewMatrix() * camera.GetProjectionMatrix());
-
 	XMVECTOR nearWorld = XMVector3TransformCoord(nearNDC, invViewProj);
 	XMVECTOR farWorld = XMVector3TransformCoord(farNDC, invViewProj);
 	XMVECTOR rayDir = XMVector3Normalize(farWorld - nearWorld);
@@ -232,10 +195,9 @@ int RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
 	XMStoreFloat3(&rayOriginF, nearWorld);
 	XMStoreFloat3(&rayDirF, rayDir);
 
-	for (int i = 0; i < this->objects.size(); ++i)
+	for (const auto& [id, obj] : objects)
 	{
-		RMPG::Object2d* o = objects[i].get();
-		XMMATRIX world = o->GetMatrix();
+		XMMATRIX world = obj->GetMatrix();
 		XMMATRIX invWorld = XMMatrixInverse(nullptr, world);
 
 		XMVECTOR localOrigin = XMVector3TransformCoord(XMLoadFloat3(&rayOriginF), invWorld);
@@ -245,7 +207,7 @@ int RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
 		XMStoreFloat3(&lo, localOrigin);
 		XMStoreFloat3(&ld, localDir);
 
-		float planeZ = o->GetCoordZ();
+		float planeZ = obj->GetCoordZ();
 		const float EPS = 1e-6f;
 		if (fabsf(ld.z) < EPS)
 			continue;
@@ -257,11 +219,11 @@ int RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
 		float hx = lo.x + ld.x * t;
 		float hy = lo.y + ld.y * t;
 
-		float halfW = o->GetWidth() * 0.5f;
-		float halfH = o->GetHeight() * 0.5f;
+		float halfW = obj->GetWidth() * 0.5f;
+		float halfH = obj->GetHeight() * 0.5f;
 
 		if (hx >= -halfW && hx <= halfW && hy >= -halfH && hy <= halfH)
-			return i;
+			return id;
 	}
 
 	return -1;
@@ -300,10 +262,8 @@ XMFLOAT3 RMPG::Graphics::ScreenToWorldOnPlane(int mouseX, int mouseY, float plan
 
 void RMPG::Graphics::ScreenToWorldRay(int mouseX, int mouseY, XMFLOAT3& outOrigin, XMFLOAT3& outDir)
 {
-	if (mouseX < 0) mouseX = 0;
-	if (mouseY < 0) mouseY = 0;
-	if (mouseX > this->windowWidth) mouseX = this->windowWidth;
-	if (mouseY > this->windowHeight) mouseX = this->windowHeight;
+	mouseX = max(0, min(mouseX, this->windowWidth));
+	mouseY = max(0, min(mouseY, this->windowHeight));
 
 	float px = (2.0f * static_cast<float>(mouseX) / static_cast<float>(this->windowWidth)) - 1.0f;
 	float py = 1.0f - (2.0f * static_cast<float>(mouseY) / static_cast<float>(this->windowHeight));
@@ -312,7 +272,6 @@ void RMPG::Graphics::ScreenToWorldRay(int mouseX, int mouseY, XMFLOAT3& outOrigi
 	XMVECTOR farNDC = XMVectorSet(px, py, 1.0f, 1.0f);
 
 	XMMATRIX invViewProj = XMMatrixInverse(nullptr, camera.GetViewMatrix() * camera.GetProjectionMatrix());
-
 	XMVECTOR nearWorld = XMVector3TransformCoord(nearNDC, invViewProj);
 	XMVECTOR farWorld = XMVector3TransformCoord(farNDC, invViewProj);
 	XMVECTOR dir = XMVector3Normalize(farWorld - nearWorld);
@@ -323,7 +282,7 @@ void RMPG::Graphics::ScreenToWorldRay(int mouseX, int mouseY, XMFLOAT3& outOrigi
 
 int RMPG::Graphics::AddTexture(const std::wstring& texFilePath)
 {
-	auto tex = std::make_unique<RMPG::Texture2d>();
+	auto tex = std::make_unique<Texture2d>();
 	HRESULT hr = tex->InitializeFromPicture(this->device.Get(), texFilePath);
 	if (FAILED(hr))
 	{
@@ -331,35 +290,45 @@ int RMPG::Graphics::AddTexture(const std::wstring& texFilePath)
 		return -1;
 	}
 
-	int index = static_cast<int>(textures.size());
-	textures.push_back(std::move(tex));
-
-	return index;
+	TextureID newId = nextTextureId++;
+	textures[newId] = std::move(tex);
+	return newId;
 }
 
-int RMPG::Graphics::AddObject(float width, float height, float coordZ, RMPG::Texture2d* texture)
+int RMPG::Graphics::AddObject(float width, float height, float coordZ, TextureID textureId)
 {
-	auto obj = std::make_unique<RMPG::Object2d>();
+	auto texIt = textures.find(textureId);
+	if (texIt == textures.end())
+	{
+		ErrorLogger::Log("Invalid texture ID passed to AddObject.");
+		return -1;
+	}
+
+	auto obj = std::make_unique<Object2d>();
 	HRESULT hr = obj->Initialize(this->device.Get(), width, height, coordZ);
 	if (FAILED(hr))
 	{
 		return -1;
 	}
-	obj->SetTexture(texture);
 
-	int index = static_cast<int>(objects.size());
-	objects.push_back(std::move(obj));
+	obj->SetTexture(texIt->second.get());
 
-	this->objectToDynamicTex.push_back(-1);
+	ObjectID newId = nextObjectId++;
+	objects[newId] = std::move(obj);
+	objectToTexture[newId] = textureId;
 
-	hr = EnsurePerObjectBufferCapacity(static_cast<int>(objects.size()));
-	if (FAILED(hr))
+	textureUsage[textureId].insert(newId);
+
+	HRESULT hr2 = EnsurePerObjectBufferCapacity(static_cast<int>(objects.size()));
+	if (FAILED(hr2))
 	{
-		objects.pop_back();
+		objects.erase(newId);
+		objectToTexture.erase(newId);
+		textureUsage[textureId].erase(newId);
 		return -1;
 	}
 
-	return index;
+	return newId;
 }
 
 int RMPG::Graphics::AddTextObjectFromFontFile(const std::wstring& fontFilePath, const std::wstring& text, int fontPixelSize, float coordZ, float scale)
@@ -370,143 +339,373 @@ int RMPG::Graphics::AddTextObjectFromFontFile(const std::wstring& fontFilePath, 
 	if (FAILED(hr) || w <= 0 || h <= 0)
 		return -1;
 
-	auto tex = std::make_unique<RMPG::Texture2d>();
+	auto tex = std::make_unique<Texture2d>();
 	hr = tex->InitializeFromMemory(this->device.Get(), w, h, pixels.data(), DXGI_FORMAT_B8G8R8A8_UNORM);
 	if (FAILED(hr))
 		return -1;
 
-	RMPG::Texture2d* texPtr = tex.get();
-	this->dynamicTextures.push_back(std::move(tex));
+	TextureID dynTexId = nextTextureId++;
+	dynamicTextures[dynTexId] = std::move(tex);
 
 	DynamicTextMeta meta;
 	meta.fontFile = fontFilePath;
 	meta.fontPixelSize = fontPixelSize;
 	meta.scale = scale;
-	this->dynamicTextMeta.push_back(meta);
+	dynamicTextMeta[dynTexId] = meta;
 
 	float width = static_cast<float>(w) * scale;
 	float height = static_cast<float>(h) * scale;
-	int idx = AddObject(width, height, coordZ, texPtr);
-	if (idx < 0)
+
+	auto obj = std::make_unique<Object2d>();
+	hr = obj->Initialize(this->device.Get(), width, height, coordZ);
+	if (FAILED(hr))
 	{
-		this->dynamicTextures.pop_back();
-		this->dynamicTextMeta.pop_back();
+		dynamicTextures.erase(dynTexId);
+		dynamicTextMeta.erase(dynTexId);
 		return -1;
 	}
 
-	int dynamicIndex = static_cast<int>(this->dynamicTextures.size()) - 1;
-	if (idx >= 0 && idx < static_cast<int>(this->objectToDynamicTex.size()))
-		this->objectToDynamicTex[idx] = dynamicIndex;
+	obj->SetTexture(dynamicTextures[dynTexId].get());
 
-	return idx;
+	ObjectID newId = nextObjectId++;
+	objects[newId] = std::move(obj);
+	objectToDynamicTexture[newId] = dynTexId;
+
+	HRESULT hr2 = EnsurePerObjectBufferCapacity(static_cast<int>(objects.size()));
+	if (FAILED(hr2))
+	{
+		objects.erase(newId);
+		objectToDynamicTexture.erase(newId);
+		dynamicTextures.erase(dynTexId);
+		dynamicTextMeta.erase(dynTexId);
+		return -1;
+	}
+
+	return newId;
 }
 
-int RMPG::Graphics::AddStyledTextObject(const std::vector<TextRun>& runs, float coordZ, float scale)
+RMPG::ObjectID RMPG::Graphics::AddStyledTextObject(const std::vector<TextRun>& runs, float coordZ, float scale)
 {
+	if (runs.empty())
+		return -1;
+
 	std::vector<unsigned char> pixels;
 	int w = 0, h = 0;
 	HRESULT hr = RasterizeTextRunsToBGRA(runs, pixels, w, h, 2);
 	if (FAILED(hr) || w <= 0 || h <= 0)
 		return -1;
 
-	auto tex = std::make_unique<RMPG::Texture2d>();
+	auto tex = std::make_unique<Texture2d>();
 	hr = tex->InitializeFromMemory(this->device.Get(), w, h, pixels.data(), DXGI_FORMAT_B8G8R8A8_UNORM);
 	if (FAILED(hr))
 		return -1;
 
-	RMPG::Texture2d* texPtr = tex.get();
-	this->dynamicTextures.push_back(std::move(tex));
+	// Создаем ID для динамической текстуры
+	TextureID dynTexId = nextTextureId++;
+	dynamicTextures[dynTexId] = std::move(tex);
+
+	// Для styled text нет метаданных как в обычном тексте, но можно хранить runs
+	// Временно - просто создаем пустые метаданные или можем хранить первую run
+	DynamicTextMeta meta;
+	if (!runs.empty())
+	{
+		meta.fontFile = runs[0].fontFile;
+		meta.fontPixelSize = runs[0].fontPixelSize;
+		meta.scale = scale;
+	}
+	dynamicTextMeta[dynTexId] = meta;
 
 	float width = static_cast<float>(w) * scale;
 	float height = static_cast<float>(h) * scale;
-	int idx = AddObject(width, height, coordZ, texPtr);
-	if (idx < 0)
+
+	// Создаем объект
+	auto obj = std::make_unique<Object2d>();
+	hr = obj->Initialize(this->device.Get(), width, height, coordZ);
+	if (FAILED(hr))
 	{
-		this->dynamicTextures.pop_back();
+		dynamicTextures.erase(dynTexId);
+		dynamicTextMeta.erase(dynTexId);
 		return -1;
 	}
 
-	if (idx >= static_cast<int>(this->objectToDynamicTex.size()))
-		this->objectToDynamicTex.resize(idx + 1, -1);
-	int dynIndex = static_cast<int>(this->dynamicTextures.size()) - 1;
-	this->objectToDynamicTex[idx] = dynIndex;
+	obj->SetTexture(dynamicTextures[dynTexId].get());
 
-	return idx;
+	ObjectID newId = nextObjectId++;
+	objects[newId] = std::move(obj);
+	objectToDynamicTexture[newId] = dynTexId;
+
+	// Обновляем буферы
+	HRESULT hr2 = EnsurePerObjectBufferCapacity(static_cast<int>(objects.size()));
+	if (FAILED(hr2))
+	{
+		objects.erase(newId);
+		objectToDynamicTexture.erase(newId);
+		dynamicTextures.erase(dynTexId);
+		dynamicTextMeta.erase(dynTexId);
+		return -1;
+	}
+
+	return newId;
 }
 
-int RMPG::Graphics::UpdateTextObject(int objectIndex, const std::wstring& text)
+int RMPG::Graphics::UpdateTextObject(ObjectID objectId, const std::wstring& text)
 {
-	if (objectIndex < 0 || objectIndex >= static_cast<int>(objects.size()))
-		return -1;
+	auto dynTexIt = objectToDynamicTexture.find(objectId);
+	if (dynTexIt == objectToDynamicTexture.end())
+		return false;
 
-	int dynIdx = this->objectToDynamicTex[objectIndex];
-	if (dynIdx < 0 || dynIdx >= static_cast<int>(this->dynamicTextures.size()))
-		return -1;
+	auto metaIt = dynamicTextMeta.find(dynTexIt->second);
+	if (metaIt == dynamicTextMeta.end())
+		return false;
 
-	const DynamicTextMeta& meta = this->dynamicTextMeta[dynIdx];
+	auto objIt = objects.find(objectId);
+	if (objIt == objects.end())
+		return false;
+
+	const DynamicTextMeta& meta = metaIt->second;
 
 	std::vector<unsigned char> pixels;
 	int w = 0, h = 0;
 	HRESULT hr = RasterizeTextToBGRA(meta.fontFile, text, meta.fontPixelSize, pixels, w, h, 2);
 	if (FAILED(hr) || w <= 0 || h <= 0)
-		return -1;
+		return false;
 
-	hr = this->dynamicTextures[dynIdx]->InitializeFromMemory(this->device.Get(), w, h, pixels.data(), DXGI_FORMAT_B8G8R8A8_UNORM);
+	auto texIt = dynamicTextures.find(dynTexIt->second);
+	if (texIt == dynamicTextures.end())
+		return false;
+
+	hr = texIt->second->InitializeFromMemory(this->device.Get(), w, h, pixels.data(), DXGI_FORMAT_B8G8R8A8_UNORM);
 	if (FAILED(hr))
-		return -1;
+		return false;
 
 	float width = static_cast<float>(w) * meta.scale;
 	float height = static_cast<float>(h) * meta.scale;
-	auto obj = this->objects[objectIndex].get();
-	if (obj)
-	{
-		obj->Initialize(this->device.Get(), width, height, obj->GetCoordZ());
-		obj->SetTexture(this->dynamicTextures[dynIdx].get());
-	}
 
-	return objectIndex;
+	hr = objIt->second->Initialize(this->device.Get(), width, height, objIt->second->GetCoordZ());
+	if (FAILED(hr))
+		return false;
+
+	objIt->second->SetTexture(texIt->second.get());
+	return true;
 }
 
-int RMPG::Graphics::UpdateStyledTextObject(int objectIndex, const std::vector<TextRun>& runs)
+bool RMPG::Graphics::UpdateStyledTextObject(ObjectID objectId, const std::vector<TextRun>& runs)
 {
-	if (objectIndex < 0 || objectIndex >= static_cast<int>(objects.size()))
-		return -1;
-	if (objectIndex >= static_cast<int>(this->objectToDynamicTex.size()))
-		return -1;
-	int dynIdx = this->objectToDynamicTex[objectIndex];
-	if (dynIdx < 0 || dynIdx >= static_cast<int>(this->dynamicTextures.size()))
-		return -1;
+	if (runs.empty())
+		return false;
+
+	auto dynTexIt = objectToDynamicTexture.find(objectId);
+	if (dynTexIt == objectToDynamicTexture.end())
+		return false;
+
+	auto objIt = objects.find(objectId);
+	if (objIt == objects.end())
+		return false;
 
 	std::vector<unsigned char> pixels;
 	int w = 0, h = 0;
 	HRESULT hr = RasterizeTextRunsToBGRA(runs, pixels, w, h, 2);
 	if (FAILED(hr) || w <= 0 || h <= 0)
-		return -1;
+		return false;
 
-	hr = this->dynamicTextures[dynIdx]->InitializeFromMemory(this->device.Get(), w, h, pixels.data(), DXGI_FORMAT_B8G8R8A8_UNORM);
+	auto texIt = dynamicTextures.find(dynTexIt->second);
+	if (texIt == dynamicTextures.end())
+		return false;
+
+	hr = texIt->second->InitializeFromMemory(this->device.Get(), w, h, pixels.data(), DXGI_FORMAT_B8G8R8A8_UNORM);
 	if (FAILED(hr))
-		return -1;
+		return false;
 
-	auto obj = this->objects[objectIndex].get();
-	if (obj)
+	auto metaIt = dynamicTextMeta.find(dynTexIt->second);
+	float scale = 1.0f;
+	if (metaIt != dynamicTextMeta.end())
 	{
-		float width = static_cast<float>(w) * 0.01f;
-		float height = static_cast<float>(h) * 0.01f;
-		obj->Initialize(this->device.Get(), width, height, obj->GetCoordZ());
-		obj->SetTexture(this->dynamicTextures[dynIdx].get());
+		scale = metaIt->second.scale;
+	}
+	else if (!runs.empty())
+	{
+		scale = 1.0f;
 	}
 
-	return objectIndex;
+	float width = static_cast<float>(w) * scale;
+	float height = static_cast<float>(h) * scale;
+
+	hr = objIt->second->Initialize(this->device.Get(), width, height, objIt->second->GetCoordZ());
+	if (FAILED(hr))
+		return false;
+
+	objIt->second->SetTexture(texIt->second.get());
+
+	if (metaIt != dynamicTextMeta.end() && !runs.empty())
+	{
+		metaIt->second.fontFile = runs[0].fontFile;
+		metaIt->second.fontPixelSize = runs[0].fontPixelSize;
+	}
+
+	return true;
 }
 
-void RMPG::Graphics::SetObjectMatrix(int objectIndex, XMMATRIX mat)
+bool RMPG::Graphics::SetObjectMatrix(ObjectID objectId, XMMATRIX mat)
 {
-	if (objectIndex < 0 || objectIndex >= static_cast<int>(this->objects.size()))
-		return;
-	auto obj = this->objects[objectIndex].get();
-	if (!obj)
-		return;
-	obj->SetMatrix(mat);
+	auto it = objects.find(objectId);
+	if (it == objects.end())
+		return false;
+
+	it->second->SetMatrix(mat);
+	return true;
+}
+
+bool RMPG::Graphics::RemoveObject(ObjectID objectId)
+{
+	auto objIt = objects.find(objectId);
+	if (objIt == objects.end())
+	{
+		ErrorLogger::Log("Object ID not found for removal: " + std::to_string(objectId));
+		return false;
+	}
+
+	auto dynTexIt = objectToDynamicTexture.find(objectId);
+	if (dynTexIt != objectToDynamicTexture.end())
+	{
+		TextureID dynTexId = dynTexIt->second;
+
+		bool usedElsewhere = false;
+		for (const auto& [id, texId] : objectToDynamicTexture)
+		{
+			if (id != objectId && texId == dynTexId)
+			{
+				usedElsewhere = true;
+				break;
+			}
+		}
+
+		if (!usedElsewhere)
+		{
+			dynamicTextures.erase(dynTexId);
+			dynamicTextMeta.erase(dynTexId);
+		}
+
+		objectToDynamicTexture.erase(objectId);
+	}
+
+	auto texIt = objectToTexture.find(objectId);
+	if (texIt != objectToTexture.end())
+	{
+		TextureID texId = texIt->second;
+		textureUsage[texId].erase(objectId);
+
+		if (textureUsage[texId].empty())
+		{
+			textureUsage.erase(texId);
+		}
+
+		objectToTexture.erase(objectId);
+	}
+
+	ReleaseObjectResources(objIt->second.get());
+
+	objects.erase(objIt);
+
+	return true;
+}
+
+bool RMPG::Graphics::RemoveAllObjects()
+{
+	for (auto& [id, obj] : objects)
+	{
+		ReleaseObjectResources(obj.get());
+	}
+
+	for (auto& [id, tex] : dynamicTextures)
+	{
+		ReleaseTextureResources(tex.get());
+	}
+
+	objects.clear();
+	objectToTexture.clear();
+	objectToDynamicTexture.clear();
+	dynamicTextures.clear();
+	dynamicTextMeta.clear();
+	textureUsage.clear();
+
+	return true;
+}
+
+bool RMPG::Graphics::RemoveTexture(TextureID textureId)
+{
+	auto texIt = textures.find(textureId);
+	if (texIt == textures.end())
+	{
+		ErrorLogger::Log("Texture ID not found for removal: " + std::to_string(textureId));
+		return false;
+	}
+
+	auto usageIt = textureUsage.find(textureId);
+	if (usageIt != textureUsage.end() && !usageIt->second.empty())
+	{
+		ErrorLogger::Log("Cannot remove texture: it is still in use by " +
+			std::to_string(usageIt->second.size()) + " objects.");
+		return false;
+	}
+
+	ReleaseTextureResources(texIt->second.get());
+
+	textures.erase(texIt);
+
+	if (usageIt != textureUsage.end())
+	{
+		textureUsage.erase(usageIt);
+	}
+
+	return true;
+}
+
+bool RMPG::Graphics::RemoveAllTextures()
+{
+	for (const auto& [texId, objSet] : textureUsage)
+	{
+		if (!objSet.empty())
+		{
+			ErrorLogger::Log("Cannot remove all textures: texture " +
+				std::to_string(texId) + " is still in use.");
+			return false;
+		}
+	}
+
+	for (auto& [id, tex] : textures)
+	{
+		ReleaseTextureResources(tex.get());
+	}
+
+	textures.clear();
+	textureUsage.clear();
+
+	return true;
+}
+
+RMPG::Object2d* RMPG::Graphics::GetObjectPtr(ObjectID objectId)
+{
+	auto it = objects.find(objectId);
+	return (it != objects.end()) ? it->second.get() : nullptr;
+}
+
+RMPG::Texture2d* RMPG::Graphics::GetTexturePtr(TextureID textureId)
+{
+	auto it = textures.find(textureId);
+	if (it != textures.end()) return it->second.get();
+	auto dynIt = dynamicTextures.find(textureId);
+	return (dynIt != dynamicTextures.end()) ? dynIt->second.get() : nullptr;
+}
+
+bool RMPG::Graphics::ObjectExists(ObjectID objectId) const
+{
+	return objects.find(objectId) != objects.end();
+}
+
+bool RMPG::Graphics::TexturerExists(TextureID textureId) const
+{
+	return textures.find(textureId) != textures.end() ||
+		dynamicTextures.find(textureId) != dynamicTextures.end();
 }
 
 int RMPG::Graphics::GetFps()
@@ -765,7 +964,7 @@ HRESULT RMPG::Graphics::EnsurePerObjectBufferCapacity(int requiredCount)
 		return S_OK;
 
 	int newCapacity = max(4, max(perObjectCapacity * 2, requiredCount));
-	
+
 	perObjectSRV.Reset();
 	perObjectStructuredBuffer.Reset();
 
@@ -798,6 +997,77 @@ HRESULT RMPG::Graphics::EnsurePerObjectBufferCapacity(int requiredCount)
 	}
 
 	perObjectCapacity = newCapacity;
-
 	return S_OK;
+}
+
+void RMPG::Graphics::ReleaseObjectResources(Object2d* obj)
+{
+	if (!obj) return;
+	obj->texture = nullptr;
+}
+
+void RMPG::Graphics::ReleaseTextureResources(Texture2d* tex)
+{
+	if (!tex) return;
+	tex->Release(); //!!!
+}
+
+void RMPG::Graphics::UpdatePerObjectBuffer()
+{
+	if (objects.empty()) return;
+
+	std::vector<XMFLOAT4X4> wvpMatrices;
+	wvpMatrices.reserve(objects.size());
+
+	XMMATRIX view = this->camera.GetViewMatrix();
+	XMMATRIX proj = this->camera.GetProjectionMatrix();
+
+	for (const auto& [id, obj] : objects)
+	{
+		XMMATRIX world = obj->GetMatrix();
+		XMMATRIX wvp = XMMatrixTranspose(world * view * proj);
+		XMFLOAT4X4 f;
+		XMStoreFloat4x4(&f, wvp);
+		wvpMatrices.push_back(f);
+	}
+
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	HRESULT hr = this->deviceContext->Map(this->perObjectStructuredBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	if (SUCCEEDED(hr))
+	{
+		memcpy(mapped.pData, wvpMatrices.data(), wvpMatrices.size() * sizeof(XMFLOAT4X4));
+		this->deviceContext->Unmap(this->perObjectStructuredBuffer.Get(), 0);
+	}
+}
+
+void RMPG::Graphics::RenderObject(ObjectID id, Object2d* obj)
+{
+	if (!obj) return;
+
+	UINT offset = 0;
+
+	int index = 0;
+	for (auto it = objects.begin(); it != objects.end(); ++it, ++index)
+	{
+		if (it->first == id) break;
+	}
+
+	this->drawBuffer.data.objectIndex = index;
+	this->drawBuffer.data.uvOffset = XMFLOAT2(obj->GetCol() * obj->GetTileWidth(), obj->GetRow() * obj->GetTileHeight());
+	this->drawBuffer.data.uvScale = XMFLOAT2(obj->GetScaleU(), obj->GetScaleV());
+
+	if (!this->drawBuffer.ApplyChanges())
+		return;
+
+	this->deviceContext->VSSetConstantBuffers(0, 1, this->drawBuffer.GetAddressOf());
+	this->deviceContext->PSSetConstantBuffers(0, 1, this->drawBuffer.GetAddressOf());
+
+	if (obj->texture)
+	{
+		this->deviceContext->PSSetShaderResources(0, 1, obj->texture->GetAddressOf());
+	}
+
+	this->deviceContext->IASetVertexBuffers(0, 1, obj->vertexBuffer.GetAddressOf(), obj->vertexBuffer.StridePtr(), &offset);
+	this->deviceContext->IASetIndexBuffer(indicesBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+	this->deviceContext->DrawIndexed(indicesBuffer.BufferSize(), 0, 0);
 }

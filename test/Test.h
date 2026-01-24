@@ -6,7 +6,7 @@ class Test : public Engine
 public:
 	bool GameInitialize()
 	{
-		idtex1 = gfx.AddTexture(L"Data\\Textures\\skeleton.png");
+		/*idtex1 = gfx.AddTexture(L"Data\\Textures\\skeleton.png");
 		idtex2 = gfx.AddTexture(L"Data\\Textures\\image.png");
 
 		ido1 = gfx.AddObject(1.0f, 1.0f, 0.0f, gfx.textures[idtex1].get());
@@ -19,7 +19,16 @@ public:
 		idt1 = gfx.AddTextObjectFromFontFile(RMPG::ttf(RMPG::FONTS::LORA_SEMI_BOLD_ITALIC), L"Привет,\nworld! 123 &", 48, 0.0f, 0.01f);
 		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_BOLD), 60, 0xFF000000u });
 		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 48, 0xFF00FF00u });
-		idt2 = gfx.AddStyledTextObject(runs, 0.0f, 0.01f);
+		idt2 = gfx.AddStyledTextObject(runs, 0.0f, 0.01f);*/
+
+		tex = gfx.AddTexture(L"Data\\Textures\\skeleton.png");
+		obj = gfx.AddObject(1.0f, 1.0f, 0.0f, tex);
+		gfx.GetObjectPtr(obj)->SetAtlas(4.0f, 1.0f);
+
+		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_BOLD), 60, 0xFF000000u });
+		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 48, 0xFF00FF00u });
+
+		txt = gfx.AddStyledTextObject(runs, 0.0f, 0.01f);
 
 		return true;
 	}
@@ -41,12 +50,12 @@ public:
 
 			if (hovered != prevHovered)
 			{
-				if (prevHovered == 0) gfx.objects[ido1]->SetCol(0.0f);
-				else if (prevHovered == 2) gfx.objects[ido3]->SetCol(0.0f);
+				//if (prevHovered == 0) gfx.objects[ido1]->SetCol(0.0f);
+				//else if (prevHovered == 2) gfx.objects[ido3]->SetCol(0.0f);
 
-				if (hovered == 0) gfx.objects[ido1]->SetCol(1.0f);
+				//if (hovered == 0) gfx.objects[ido1]->SetCol(1.0f);
 				//else if (hovered == 1 && mouse.IsLeftDown()) this->rotate = 0;
-				else if (hovered == 2) gfx.objects[ido3]->SetCol(1.0f);
+				//else if (hovered == 2) gfx.objects[ido3]->SetCol(1.0f);
 
 				prevHovered = hovered;
 			}
@@ -83,9 +92,23 @@ public:
 		{
 			gfx.SetVSync(false);
 		}
+		if (keyboard.KeyIsPressed('D'))
+		{
+			if (gfx.ObjectExists(obj))
+			{
+				gfx.RemoveObject(obj);
+			}
+
+			/*if (useObjects)
+			{
+				gfx.RemoveObject(idt2);
+				useObjects = false;
+			}*/
+			//ido1 = gfx.AddObject(1.0f, 1.0f, 0.0f, gfx.textures[idtex1].get());
+		}
 
 		runs[1].text = std::to_wstring(gfx.GetFps());
-		gfx.UpdateStyledTextObject(idt2, runs);
+		gfx.UpdateStyledTextObject(txt, runs);
 	}
 
 	void FixedUpdate() override
@@ -100,28 +123,34 @@ public:
 			mouseInWorld = gfx.ScreenToWorldOnPlane(mouse.GetPosX(), mouse.GetPosY());
 		}
 
-		gfx.objects[ido1]->SetMatrix(XMMatrixTranslation(rot * 0.5f, 0.0f, 0.0f));
+		/*gfx.objects[ido1]->SetMatrix(XMMatrixTranslation(rot * 0.5f, 0.0f, 0.0f));
 		gfx.objects[ido2]->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(mouseInWorld.x, mouseInWorld.y, 0.0f));
 		gfx.objects[ido3]->SetMatrix(XMMatrixTranslation(1.25f, -0.35f, 0.0f));
 		gfx.SetObjectMatrix(idt1, XMMatrixTranslation(-2.0f, 1.5f, 0.0f));
-		gfx.SetObjectMatrix(idt2, XMMatrixRotationZ(rot / 2));
+		gfx.SetObjectMatrix(idt2, XMMatrixRotationZ(rot / 2));*/
 	}
 
 private:
-	// objects identificators
-	int ido1;
-	int ido2;
-	int ido3;
-
-	// text objects identificators
-	int idt1;
-	int idt2;
-
-	// container of styled text object
+	RMPG::TextureID tex;
+	RMPG::ObjectID obj;
+	RMPG::ObjectID txt;
 	std::vector<TextRun> runs;
 
-	// textures identificators
-	int idtex1;
-	int idtex2;
+	//// objects identificators
+	//int ido1;
+	//int ido2;
+	//int ido3;
 
+	//// text objects identificators
+	//int idt1;
+	//int idt2;
+
+	//// container of styled text object
+	//std::vector<TextRun> runs;
+
+	//// textures identificators
+	//int idtex1;
+	//int idtex2;
+
+	//bool useObjects = true;
 };

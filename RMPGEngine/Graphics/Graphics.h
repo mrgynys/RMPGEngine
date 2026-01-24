@@ -13,6 +13,9 @@
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <map>
+#include <unordered_map>
+#include <set>
 #include "FontRasterizer.h"
 #include <locale>
 #include <codecvt>
@@ -27,6 +30,9 @@ namespace RMPG
 		float scale;
 	};
 
+	using ObjectID = int;
+	using TextureID = int;
+
 	class Graphics
 	{
 	public:
@@ -36,27 +42,35 @@ namespace RMPG
 		bool SetFullScreen(bool fullscreen);
 		void SetVSync(bool vsync);
 
-		int PickObjectAt(int mouseX, int mouseY);
+		ObjectID PickObjectAt(int mouseX, int mouseY);
 
 		XMFLOAT3 ScreenToWorldOnPlane(int mouseX, int mouseY, float planeZ = 0.0f);
 		void ScreenToWorldRay(int mouseX, int mouseY, XMFLOAT3& outOrigin, XMFLOAT3& outDir);
 
 		int AddTexture(const std::wstring& texFilePath);
 
-		int AddObject(float width, float height, float coordZ, RMPG::Texture2d* texture);
-		int AddTextObjectFromFontFile(const std::wstring& fontFilePath, const std::wstring& text, int fontPixelSize, float coordZ, float scale = 1.0f);
-		int AddStyledTextObject(const std::vector<TextRun>& runs, float coordZ, float scale = 1.0f);
+		ObjectID AddObject(float width, float height, float coordZ, TextureID textureId);
+		ObjectID AddTextObjectFromFontFile(const std::wstring& fontFilePath, const std::wstring& text, int fontPixelSize, float coordZ, float scale = 1.0f);
+		ObjectID AddStyledTextObject(const std::vector<TextRun>& runs, float coordZ, float scale = 1.0f);
 
-		int UpdateTextObject(int objectIndex, const std::wstring& text);
-		int UpdateStyledTextObject(int objectIndex, const std::vector<TextRun>& runs);
-		void SetObjectMatrix(int objectIndex, XMMATRIX mat);
+		int UpdateTextObject(ObjectID objectId, const std::wstring& text);
+		bool UpdateStyledTextObject(ObjectID objectId, const std::vector<TextRun>& runs);
+		bool SetObjectMatrix(ObjectID objectId, XMMATRIX mat);
+
+		bool RemoveObject(ObjectID objectId);
+		bool RemoveAllObjects();
+		bool RemoveTexture(TextureID textureId);
+		bool RemoveAllTextures();
+
+		RMPG::Object2d* GetObjectPtr(ObjectID objectId);
+		RMPG::Texture2d* GetTexturePtr(TextureID textureId);
+
+		bool ObjectExists(ObjectID objectId) const;
+		bool TexturerExists(TextureID textureId) const;
 
 		int GetFps();
 
 		Camera camera;
-
-		std::vector<std::unique_ptr<RMPG::Object2d>> objects;
-		std::vector<std::unique_ptr<RMPG::Texture2d>> textures;
 
 	private:
 		bool InitializeDirectX(HWND hwnd);
@@ -64,6 +78,12 @@ namespace RMPG
 		bool InitializeScene();
 
 		HRESULT EnsurePerObjectBufferCapacity(int requiredCount);
+
+		void ReleaseObjectResources(Object2d* obj);
+		void ReleaseTextureResources(Texture2d* tex);
+
+		void UpdatePerObjectBuffer();
+		void RenderObject(ObjectID id, Object2d* obj);
 
 		Microsoft::WRL::ComPtr<ID3D11Device> device;
 		Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext;
@@ -99,10 +119,17 @@ namespace RMPG
 		int fpsCounter = 0;
 		int curFps = 0;
 
-		std::vector<std::unique_ptr<RMPG::Texture2d>> dynamicTextures;
+		std::map<ObjectID, std::unique_ptr<Object2d>> objects;
+		std::map<TextureID, std::unique_ptr<Texture2d>> textures;
 
-		std::vector<DynamicTextMeta> dynamicTextMeta;
-		std::vector<int> objectToDynamicTex;
+		ObjectID nextObjectId = 0;
+		TextureID nextTextureId = 0;
+
+		std::map<TextureID, std::unique_ptr<Texture2d>> dynamicTextures;
+		std::map<TextureID, DynamicTextMeta> dynamicTextMeta;
+		std::map<ObjectID, TextureID> objectToDynamicTexture;
+		std::map<ObjectID, TextureID> objectToTexture;
+		std::map<TextureID, std::set<ObjectID>> textureUsage;
 
 	};
 };
