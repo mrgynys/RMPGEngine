@@ -6,6 +6,12 @@
 
 namespace RMPG
 {
+	enum class TextureFilterMode
+	{
+		Point,
+		Linear
+	};
+
 	class Texture2d
 	{
 	public:
@@ -16,6 +22,8 @@ namespace RMPG
 
 		ID3D11ShaderResourceView* Get() const;
 		ID3D11ShaderResourceView* const* GetAddressOf() const;
+
+		TextureFilterMode filter = TextureFilterMode::Point;
 
 	private:
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;

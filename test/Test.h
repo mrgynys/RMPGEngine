@@ -21,14 +21,20 @@ public:
 		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 48, 0xFF00FF00u });
 		idt2 = gfx.AddStyledTextObject(runs, 0.0f, 0.01f);*/
 
+		static auto t = gfx.AddTexture(L"Data\\Textures\\green_button.png");
+		static auto qw = gfx.AddObject(3.0f, 0.6f, 0.0f, t);
+
 		tex = gfx.AddTexture(L"Data\\Textures\\skeleton.png");
 		obj = gfx.AddObject(1.0f, 1.0f, 0.0f, tex);
 		gfx.GetObjectPtr(obj)->SetAtlas(4.0f, 1.0f);
 
-		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_BOLD), 60, 0xFF000000u });
-		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 48, 0xFF00FF00u });
-
+		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 32, 0xFF00FF00u });
+		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 32, 0xFFFFFFFFu });
 		txt = gfx.AddStyledTextObject(runs, 0.0f, 0.01f);
+		gfx.GetObjectPtr(txt)->texture->filter = RMPG::TextureFilterMode::Linear;
+
+		static auto o = gfx.AddObject(0.5f, 0.5f, 0.0f, tex);
+		gfx.GetObjectPtr(o)->SetAtlas(4.0f, 1.0f);
 
 		return true;
 	}
@@ -46,18 +52,28 @@ public:
 		{
 			MousePoint mp = mouse.GetPos();
 			static int prevHovered = -1;
-			int hovered = gfx.PickObjectAt(mp.x, mp.y);
-
-			if (hovered != prevHovered)
+			std::vector<RMPG::ObjectID> hovered = gfx.PickObjectsAt(mp.x, mp.y);
+			if (!hovered.empty())
 			{
-				//if (prevHovered == 0) gfx.objects[ido1]->SetCol(0.0f);
-				//else if (prevHovered == 2) gfx.objects[ido3]->SetCol(0.0f);
+				int nearestHovered = hovered.back();
+				if (nearestHovered != prevHovered)
+				{
+					std::string outstrUnhover = "\nUnhovered: ";
+					outstrUnhover += std::to_string(prevHovered);
+					std::string outstrHover = "\nHovered: ";
+					outstrHover += std::to_string(nearestHovered);
+					OutputDebugStringA(outstrUnhover.c_str());
+					OutputDebugStringA(outstrHover.c_str());
 
-				//if (hovered == 0) gfx.objects[ido1]->SetCol(1.0f);
-				//else if (hovered == 1 && mouse.IsLeftDown()) this->rotate = 0;
-				//else if (hovered == 2) gfx.objects[ido3]->SetCol(1.0f);
+					//if (prevHovered == 0) gfx.objects[ido1]->SetCol(0.0f);
+					//else if (prevHovered == 2) gfx.objects[ido3]->SetCol(0.0f);
 
-				prevHovered = hovered;
+					//if (hovered == 0) gfx.objects[ido1]->SetCol(1.0f);
+					//else if (hovered == 1 && mouse.IsLeftDown()) this->rotate = 0;
+					//else if (hovered == 2) gfx.objects[ido3]->SetCol(1.0f);
+
+					prevHovered = nearestHovered;
+				}
 			}
 		}
 
@@ -122,6 +138,10 @@ public:
 		{
 			mouseInWorld = gfx.ScreenToWorldOnPlane(mouse.GetPosX(), mouse.GetPosY());
 		}
+
+		gfx.GetObjectPtr(obj)->SetMatrix(XMMatrixTranslation(0.3f, 0.0f, 0.0f));
+
+		gfx.GetObjectPtr(txt)->SetMatrix(XMMatrixTranslation(gfx.GetTopLeftWorldCoord().x + 0.6f, gfx.GetTopLeftWorldCoord().y - 0.3f, 0.0f));
 
 		/*gfx.objects[ido1]->SetMatrix(XMMatrixTranslation(rot * 0.5f, 0.0f, 0.0f));
 		gfx.objects[ido2]->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(mouseInWorld.x, mouseInWorld.y, 0.0f));

@@ -35,7 +35,6 @@ void RMPG::Graphics::RenderFrame()
 	this->deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	this->deviceContext->RSSetState(this->rasterizerState.Get());
 	this->deviceContext->OMSetDepthStencilState(this->depthStencilState.Get(), 0);
-	this->deviceContext->PSSetSamplers(0, 1, this->samplerState.GetAddressOf());
 	this->deviceContext->VSSetShader(vertexshader.GetShader(), NULL, 0);
 	this->deviceContext->PSSetShader(pixelshader.GetShader(), NULL, 0);
 
@@ -175,10 +174,13 @@ void RMPG::Graphics::SetVSync(bool vsync)
 		this->vsync_on = 0;
 }
 
-RMPG::ObjectID RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
+// last object ".back()" will be nearest
+std::vector<RMPG::ObjectID> RMPG::Graphics::PickObjectsAt(int mouseX, int mouseY)
 {
+	std::vector<ObjectID> result;
+
 	if (mouseX < 0 || mouseY < 0 || mouseX > this->windowWidth || mouseY > this->windowHeight)
-		return -1;
+		return result;
 
 	float px = (2.0f * static_cast<float>(mouseX) / static_cast<float>(this->windowWidth)) - 1.0f;
 	float py = 1.0f - (2.0f * static_cast<float>(mouseY) / static_cast<float>(this->windowHeight));
@@ -209,6 +211,7 @@ RMPG::ObjectID RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
 
 		float planeZ = obj->GetCoordZ();
 		const float EPS = 1e-6f;
+
 		if (fabsf(ld.z) < EPS)
 			continue;
 
@@ -223,10 +226,21 @@ RMPG::ObjectID RMPG::Graphics::PickObjectAt(int mouseX, int mouseY)
 		float halfH = obj->GetHeight() * 0.5f;
 
 		if (hx >= -halfW && hx <= halfW && hy >= -halfH && hy <= halfH)
-			return id;
+		{
+			result.push_back(id);
+		}
 	}
 
-	return -1;
+	std::sort(result.begin(), result.end(), [this](ObjectID a, ObjectID b) {
+		auto objA = objects.find(a);
+		auto objB = objects.find(b);
+		if (objA != objects.end() && objB != objects.end()) {
+			return objA->second->GetCoordZ() < objB->second->GetCoordZ();
+		}
+		return false;
+		});
+
+	return result;
 }
 
 XMFLOAT3 RMPG::Graphics::ScreenToWorldOnPlane(int mouseX, int mouseY, float planeZ)
@@ -713,6 +727,119 @@ int RMPG::Graphics::GetFps()
 	return this->curFps;
 }
 
+XMFLOAT2 RMPG::Graphics::GetWorldCoordAtScreenPoint(int screenX, int screenY, float worldZ)
+{
+	screenX = max(0, min(screenX, windowWidth));
+	screenY = max(0, min(screenY, windowHeight));
+
+	float px = (2.0f * static_cast<float>(screenX) / static_cast<float>(windowWidth)) - 1.0f;
+	float py = 1.0f - (2.0f * static_cast<float>(screenY) / static_cast<float>(windowHeight));
+
+	XMVECTOR nearNDC = XMVectorSet(px, py, 0.0f, 1.0f);
+	XMVECTOR farNDC = XMVectorSet(px, py, 1.0f, 1.0f);
+
+	XMMATRIX invViewProj = XMMatrixInverse(nullptr, camera.GetViewMatrix() * camera.GetProjectionMatrix());
+	XMVECTOR nearWorld = XMVector3TransformCoord(nearNDC, invViewProj);
+	XMVECTOR farWorld = XMVector3TransformCoord(farNDC, invViewProj);
+
+	XMVECTOR rayOrigin = nearWorld;
+	XMVECTOR rayDir = XMVector3Normalize(farWorld - nearWorld);
+
+	XMFLOAT3 originF, dirF;
+	XMStoreFloat3(&originF, rayOrigin);
+	XMStoreFloat3(&dirF, rayDir);
+
+	const float EPS = 1e-6f;
+	if (fabsf(dirF.z) < EPS)
+	{
+		return XMFLOAT2(originF.x, originF.y);
+	}
+
+	float t = (worldZ - originF.z) / dirF.z;
+
+	if (t < 0.0f)
+	{
+		return XMFLOAT2(originF.x, originF.y);
+	}
+
+	XMVECTOR hit = rayOrigin + rayDir * t;
+	XMFLOAT3 hitF;
+	XMStoreFloat3(&hitF, hit);
+
+	return XMFLOAT2(hitF.x, hitF.y);
+}
+
+XMFLOAT2 RMPG::Graphics::GetTopLeftWorldCoord(float worldZ)
+{
+	return GetWorldCoordAtScreenPoint(0, 0, worldZ);
+}
+
+XMFLOAT2 RMPG::Graphics::GetTopRightWorldCoord(float worldZ)
+{
+	return GetWorldCoordAtScreenPoint(windowWidth, 0, worldZ);
+}
+
+XMFLOAT2 RMPG::Graphics::GetBottomLeftWorldCoord(float worldZ)
+{
+	return GetWorldCoordAtScreenPoint(0, windowHeight, worldZ);
+}
+
+XMFLOAT2 RMPG::Graphics::GetBottomRightWorldCoord(float worldZ)
+{
+	return GetWorldCoordAtScreenPoint(windowWidth, windowHeight, worldZ);
+}
+
+XMFLOAT2 RMPG::Graphics::GetCenterWorldCoord(float worldZ)
+{
+	return GetWorldCoordAtScreenPoint(windowWidth / 2, windowHeight / 2, worldZ);
+}
+
+RMPG::WorldBounds RMPG::Graphics::GetCameraWorldBounds(float worldZ)
+{
+	WorldBounds bounds;
+	bounds.topLeft = GetTopLeftWorldCoord(worldZ);
+	bounds.topRight = GetTopRightWorldCoord(worldZ);
+	bounds.bottomLeft = GetBottomLeftWorldCoord(worldZ);
+	bounds.bottomRight = GetBottomRightWorldCoord(worldZ);
+	bounds.center = GetCenterWorldCoord(worldZ);
+
+	bounds.width = bounds.topRight.x - bounds.topLeft.x;
+	bounds.height = bounds.topLeft.y - bounds.bottomLeft.y;
+
+	return bounds;
+}
+
+XMFLOAT2 RMPG::Graphics::WorldToScreenCoord(const XMFLOAT3& worldPos)
+{
+	XMVECTOR worldVec = XMLoadFloat3(&worldPos);
+
+	XMMATRIX viewProj = camera.GetViewMatrix() * camera.GetProjectionMatrix();
+	XMVECTOR projVec = XMVector3TransformCoord(worldVec, viewProj);
+
+	XMFLOAT3 projPos;
+	XMStoreFloat3(&projPos, projVec);
+
+	XMFLOAT2 screenPos;
+	screenPos.x = (projPos.x + 1.0f) * 0.5f * windowWidth;
+	screenPos.y = (1.0f - projPos.y) * 0.5f * windowHeight;
+
+	return screenPos;
+}
+
+bool RMPG::Graphics::IsWorldPointVisible(const XMFLOAT3& worldPos)
+{
+	XMVECTOR worldVec = XMLoadFloat3(&worldPos);
+	XMMATRIX viewProj = camera.GetViewMatrix() * camera.GetProjectionMatrix();
+	XMVECTOR projVec = XMVector3TransformCoord(worldVec, viewProj);
+
+	XMFLOAT3 projPos;
+	XMStoreFloat3(&projPos, projVec);
+
+	return (projPos.x >= -1.0f && projPos.x <= 1.0f &&
+		projPos.y >= -1.0f && projPos.y <= 1.0f &&
+		projPos.z >= 0.0f && projPos.z <= 1.0f);
+}
+
 bool RMPG::Graphics::InitializeDirectX(HWND hwnd)
 {
 	std::vector<AdapterData> adapters = AdapterReader::GetAdapters();
@@ -848,21 +975,8 @@ bool RMPG::Graphics::InitializeDirectX(HWND hwnd)
 		return false;
 	}
 
-	D3D11_SAMPLER_DESC sampDesc;
-	ZeroMemory(&sampDesc, sizeof(sampDesc));
-	//sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	sampDesc.MinLOD = 0;
-	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	
-	hr = this->device->CreateSamplerState(&sampDesc, this->samplerState.GetAddressOf());
-	if (FAILED(hr))
+	if (!CreateSamplerStates())
 	{
-		ErrorLogger::Log(hr, "Failed to create sampler state.");
 		return false;
 	}
 
@@ -1052,6 +1166,15 @@ void RMPG::Graphics::RenderObject(ObjectID id, Object2d* obj)
 		if (it->first == id) break;
 	}
 
+	if (obj->texture->filter == RMPG::TextureFilterMode::Linear)
+	{
+		this->deviceContext->PSSetSamplers(0, 1, this->linearSamplerState.GetAddressOf());
+	}
+	else
+	{
+		this->deviceContext->PSSetSamplers(0, 1, this->pointSamplerState.GetAddressOf());
+	}
+
 	this->drawBuffer.data.objectIndex = index;
 	this->drawBuffer.data.uvOffset = XMFLOAT2(obj->GetCol() * obj->GetTileWidth(), obj->GetRow() * obj->GetTileHeight());
 	this->drawBuffer.data.uvScale = XMFLOAT2(obj->GetScaleU(), obj->GetScaleV());
@@ -1070,4 +1193,45 @@ void RMPG::Graphics::RenderObject(ObjectID id, Object2d* obj)
 	this->deviceContext->IASetVertexBuffers(0, 1, obj->vertexBuffer.GetAddressOf(), obj->vertexBuffer.StridePtr(), &offset);
 	this->deviceContext->IASetIndexBuffer(indicesBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 	this->deviceContext->DrawIndexed(indicesBuffer.BufferSize(), 0, 0);
+}
+
+bool RMPG::Graphics::CreateSamplerStates()
+{
+	D3D11_SAMPLER_DESC pointDesc;
+	ZeroMemory(&pointDesc, sizeof(pointDesc));
+	pointDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+	pointDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	pointDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	pointDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	pointDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	pointDesc.MinLOD = 0;
+	pointDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	HRESULT hr = this->device->CreateSamplerState(&pointDesc, this->pointSamplerState.GetAddressOf());
+	if (FAILED(hr))
+	{
+		ErrorLogger::Log(hr, "Failed to create point sampler state.");
+		return false;
+	}
+
+	D3D11_SAMPLER_DESC linearDesc;
+	ZeroMemory(&linearDesc, sizeof(linearDesc));
+	linearDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	linearDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	linearDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	linearDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	linearDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	linearDesc.MinLOD = 0;
+	linearDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	linearDesc.MipLODBias = 0.0f;
+	linearDesc.MaxAnisotropy = 1;
+
+	hr = this->device->CreateSamplerState(&linearDesc, this->linearSamplerState.GetAddressOf());
+	if (FAILED(hr))
+	{
+		ErrorLogger::Log(hr, "Failed to create linear sampler state.");
+		return false;
+	}
+
+	return true;
 }

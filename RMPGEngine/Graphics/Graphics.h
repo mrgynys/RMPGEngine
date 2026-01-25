@@ -30,6 +30,16 @@ namespace RMPG
 		float scale;
 	};
 
+	struct WorldBounds {
+		XMFLOAT2 topLeft;
+		XMFLOAT2 topRight;
+		XMFLOAT2 bottomLeft;
+		XMFLOAT2 bottomRight;
+		XMFLOAT2 center;
+		float width;
+		float height;
+	};
+
 	using ObjectID = int;
 	using TextureID = int;
 
@@ -42,7 +52,7 @@ namespace RMPG
 		bool SetFullScreen(bool fullscreen);
 		void SetVSync(bool vsync);
 
-		ObjectID PickObjectAt(int mouseX, int mouseY);
+		std::vector<ObjectID> PickObjectsAt(int mouseX, int mouseY);
 
 		XMFLOAT3 ScreenToWorldOnPlane(int mouseX, int mouseY, float planeZ = 0.0f);
 		void ScreenToWorldRay(int mouseX, int mouseY, XMFLOAT3& outOrigin, XMFLOAT3& outDir);
@@ -72,6 +82,16 @@ namespace RMPG
 
 		Camera camera;
 
+		XMFLOAT2 GetWorldCoordAtScreenPoint(int screenX, int screenY, float worldZ = 0.0f);
+		XMFLOAT2 GetTopLeftWorldCoord(float worldZ = 0.0f);
+		XMFLOAT2 GetTopRightWorldCoord(float worldZ = 0.0f);
+		XMFLOAT2 GetBottomLeftWorldCoord(float worldZ = 0.0f);
+		XMFLOAT2 GetBottomRightWorldCoord(float worldZ = 0.0f);
+		XMFLOAT2 GetCenterWorldCoord(float worldZ = 0.0f);
+		WorldBounds GetCameraWorldBounds(float worldZ = 0.0f);
+		XMFLOAT2 WorldToScreenCoord(const XMFLOAT3& worldPos);
+		bool IsWorldPointVisible(const XMFLOAT3& worldPos);
+
 	private:
 		bool InitializeDirectX(HWND hwnd);
 		bool InitializeShaders();
@@ -84,6 +104,8 @@ namespace RMPG
 
 		void UpdatePerObjectBuffer();
 		void RenderObject(ObjectID id, Object2d* obj);
+
+		bool CreateSamplerStates();
 
 		Microsoft::WRL::ComPtr<ID3D11Device> device;
 		Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext;
@@ -107,7 +129,8 @@ namespace RMPG
 
 		Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizerState;
 
-		Microsoft::WRL::ComPtr<ID3D11SamplerState> samplerState;
+		Microsoft::WRL::ComPtr<ID3D11SamplerState> pointSamplerState;
+		Microsoft::WRL::ComPtr<ID3D11SamplerState> linearSamplerState;
 		Microsoft::WRL::ComPtr<ID3D11BlendState> blendState;
 
 		int windowWidth = 0;
