@@ -139,7 +139,7 @@ public:
 			mouseInWorld = gfx.ScreenToWorldOnPlane(mouse.GetPosX(), mouse.GetPosY());
 		}
 
-		gfx.GetObjectPtr(obj)->SetMatrix(XMMatrixTranslation(0.3f, 0.0f, 0.0f));
+		gfx.GetObjectPtr(obj)->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(0.3f, 0.0f, 0.0f));
 
 		gfx.GetObjectPtr(txt)->SetMatrix(XMMatrixTranslation(gfx.GetTopLeftWorldCoord().x + 0.6f, gfx.GetTopLeftWorldCoord().y - 0.3f, 0.0f));
 
