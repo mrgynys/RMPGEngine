@@ -66,6 +66,7 @@ namespace RMPG
 		int UpdateTextObject(ObjectID objectId, const std::wstring& text);
 		bool UpdateStyledTextObject(ObjectID objectId, const std::vector<TextRun>& runs);
 		bool SetObjectMatrix(ObjectID objectId, XMMATRIX mat);
+		bool SetObjectTintColor(ObjectID objectId, const XMFLOAT4& color, float intensity = 1.0f);
 
 		bool RemoveObject(ObjectID objectId);
 		bool RemoveAllObjects();
@@ -74,6 +75,9 @@ namespace RMPG
 
 		RMPG::Object2d* GetObjectPtr(ObjectID objectId);
 		RMPG::Texture2d* GetTexturePtr(TextureID textureId);
+
+		XMFLOAT4 GetObjectTintColor(ObjectID objectId) const;
+		float GetObjectTintIntensity(ObjectID objectId) const;
 
 		bool ObjectExists(ObjectID objectId) const;
 		bool TexturerExists(TextureID textureId) const;

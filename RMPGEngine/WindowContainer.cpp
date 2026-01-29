@@ -121,11 +121,11 @@ LRESULT WindowContainer::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 		int y = HIWORD(lParam);
 		if (GET_WHEEL_DELTA_WPARAM(wParam) > 0)
 		{
-			mouse.OnWheelUp(x, y);
+			mouse.OnWheelUp(x, y, GET_WHEEL_DELTA_WPARAM(wParam));
 		}
 		else if (GET_WHEEL_DELTA_WPARAM(wParam) < 0)
 		{
-			mouse.OnWheelDown(x, y);
+			mouse.OnWheelDown(x, y, GET_WHEEL_DELTA_WPARAM(wParam));
 		}
 		return 0;
 	}

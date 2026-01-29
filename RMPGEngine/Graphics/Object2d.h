@@ -43,6 +43,12 @@ namespace RMPG
 		float GetScaleU() const;
 		float GetScaleV() const;
 
+		void SetTintColor(const XMFLOAT4& color);
+		XMFLOAT4 GetTintColor() const;
+
+		void SetTintIntensity(float intensity);
+		float GetTintIntensity() const;
+
 	public:
 		VertexBuffer<Vertex> vertexBuffer;
 		Texture2d* texture = nullptr;
@@ -60,5 +66,8 @@ namespace RMPG
 		float width = 1.0f;
 		float height = 1.0f;
 		float coordZ = 0.0f;
+
+		XMFLOAT4 tintColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		float tintIntensity = 0.0f;
 	};
 };

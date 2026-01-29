@@ -6,6 +6,11 @@ cbuffer Draw : register(b0)
     uint padding2;
     float2 uvOffset;
     float2 uvScale;
+    float4 tintColor;
+    float tintIntensity;
+    float pad3;
+    float pad4;
+    float pad5;
 }
 
 struct PS_INPUT
@@ -21,5 +26,8 @@ float4 main(PS_INPUT input): SV_TARGET
 {
     float2 uv = input.inTexCoord * uvScale + uvOffset;
     float4 pixelColor = objTexture.Sample(objSamplerState, uv);
+    float originalAlpha = pixelColor.a;
+    pixelColor.rgb = lerp(pixelColor.rgb, tintColor.rgb, tintIntensity);
+    pixelColor.a = originalAlpha * tintColor.a;
     return pixelColor;
 }

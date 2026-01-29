@@ -123,6 +123,21 @@ public:
 			//ido1 = gfx.AddObject(1.0f, 1.0f, 0.0f, gfx.textures[idtex1].get());
 		}
 
+		static float redLayout = 0.5f;
+		if (mouse.GetWheelDelta() < 0)
+		{
+			redLayout -= 0.1f;
+			if (redLayout < 0.0f) redLayout = 0.0f;
+		}
+		if (mouse.GetWheelDelta() > 0)
+		{
+			redLayout += 0.1f;
+			if (redLayout > 1.0f) redLayout = 1.0f;
+		}
+		gfx.SetObjectTintColor(obj, XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), redLayout);
+
+		mouse.ResetWheelDelta();
+
 		runs[1].text = std::to_wstring(gfx.GetFps());
 		gfx.UpdateStyledTextObject(txt, runs);
 	}

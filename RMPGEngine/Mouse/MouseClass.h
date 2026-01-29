@@ -11,8 +11,8 @@ public:
 	void OnRightReleased(int x, int y);
 	void OnMiddlePressed(int x, int y);
 	void OnMiddleReleased(int x, int y);
-	void OnWheelUp(int x, int y);
-	void OnWheelDown(int x, int y);
+	void OnWheelUp(int x, int y, short delta);
+	void OnWheelDown(int x, int y, short delta);
 	void OnMouseMove(int x, int y);
 	void OnMouseMoveRaw(int x, int y);
 
@@ -23,6 +23,8 @@ public:
 	int GetPosX();
 	int GetPosY();
 	MousePoint GetPos();
+	int GetWheelDelta();
+	void ResetWheelDelta();
 
 	bool EventBufferIsEmpty();
 	MouseEvent ReadEvent();
@@ -34,4 +36,5 @@ private:
 	bool mbuttonDown = false;
 	int x = 0;
 	int y = 0;
+	int wheelDelta = 0;
 };

@@ -8,4 +8,9 @@ struct CBDraw
 
 	DirectX::XMFLOAT2 uvOffset;
 	DirectX::XMFLOAT2 uvScale;
+
+	DirectX::XMFLOAT4 tintColor;
+
+	float tintIntensity;
+	float padding2[3];
 };

@@ -36,13 +36,15 @@ void MouseClass::OnMiddleReleased(int x, int y)
 	this->eventBuffer.push(MouseEvent(MouseEvent::EventType::MRelease, x, y));
 }
 
-void MouseClass::OnWheelUp(int x, int y)
+void MouseClass::OnWheelUp(int x, int y, short delta)
 {
+	this->wheelDelta += delta;
 	this->eventBuffer.push(MouseEvent(MouseEvent::EventType::WheelUp, x, y));
 }
 
-void MouseClass::OnWheelDown(int x, int y)
+void MouseClass::OnWheelDown(int x, int y, short delta)
 {
+	this->wheelDelta += delta;
 	this->eventBuffer.push(MouseEvent(MouseEvent::EventType::WheelDown, x, y));
 }
 
@@ -86,6 +88,16 @@ int MouseClass::GetPosY()
 MousePoint MouseClass::GetPos()
 {
 	return { this->x, this->y };
+}
+
+int MouseClass::GetWheelDelta()
+{
+	return this->wheelDelta;
+}
+
+void MouseClass::ResetWheelDelta()
+{
+	this->wheelDelta = 0;
 }
 
 bool MouseClass::EventBufferIsEmpty()

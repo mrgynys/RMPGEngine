@@ -8,6 +8,11 @@ cbuffer Draw : register(b0)
     uint pad2;
     float2 uvOffset;
     float2 uvScale;
+    float4 tintColor;
+    float tintIntensity;
+    float pad3;
+    float pad4;
+    float pad5;
 };
 
 struct VS_INPUT

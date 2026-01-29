@@ -130,3 +130,24 @@ float RMPG::Object2d::GetScaleV() const
 {
     return 1.0f / this->atlasRows;
 }
+
+void RMPG::Object2d::SetTintColor(const XMFLOAT4& color)
+{
+    this->tintColor = color;
+}
+
+XMFLOAT4 RMPG::Object2d::GetTintColor() const
+{
+    return this->tintColor;
+}
+
+void RMPG::Object2d::SetTintIntensity(float intensity)
+{
+    this->tintIntensity = intensity;
+}
+
+float RMPG::Object2d::GetTintIntensity() const
+{
+    return this->tintIntensity;
+}
+

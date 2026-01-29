@@ -569,6 +569,17 @@ bool RMPG::Graphics::SetObjectMatrix(ObjectID objectId, XMMATRIX mat)
 	return true;
 }
 
+bool RMPG::Graphics::SetObjectTintColor(ObjectID objectId, const XMFLOAT4& color, float intensity)
+{
+	auto it = objects.find(objectId);
+	if (it == objects.end())
+		return false;
+
+	it->second->SetTintColor(color);
+	it->second->SetTintIntensity(intensity);
+	return true;
+}
+
 bool RMPG::Graphics::RemoveObject(ObjectID objectId)
 {
 	auto objIt = objects.find(objectId);
@@ -709,6 +720,24 @@ RMPG::Texture2d* RMPG::Graphics::GetTexturePtr(TextureID textureId)
 	if (it != textures.end()) return it->second.get();
 	auto dynIt = dynamicTextures.find(textureId);
 	return (dynIt != dynamicTextures.end()) ? dynIt->second.get() : nullptr;
+}
+
+XMFLOAT4 RMPG::Graphics::GetObjectTintColor(ObjectID objectId) const
+{
+	auto it = objects.find(objectId);
+	if (it == objects.end())
+		return XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+	return it->second->GetTintColor();
+}
+
+float RMPG::Graphics::GetObjectTintIntensity(ObjectID objectId) const
+{
+	auto it = objects.find(objectId);
+	if (it == objects.end())
+		return 0.0f;
+
+	return it->second->GetTintIntensity();
 }
 
 bool RMPG::Graphics::ObjectExists(ObjectID objectId) const
@@ -1014,15 +1043,15 @@ bool RMPG::Graphics::InitializeShaders()
 	{
 #ifdef _DEBUG //DEBUG
 	#ifdef _WIN64 //x64
-		shaderfolder = L"..\\x64\\Debug\\";
+		shaderfolder = L"Shaders\\x64\\Debug\\";
 	#else //x32
-		shaderfolder = L"..\\Debug\\";
+		shaderfolder = L"Shaders\\x86\\Debug\\";
 	#endif //RELEASE
 #else
 	#ifdef _WIN64 //x64
-		shaderfolder = L"..\\x64\\Release\\";
+		shaderfolder = L"Shaders\\x64\\Release\\";
 	#else //x32
-		shaderfolder = L"..\\Release\\";
+		shaderfolder = L"Shaders\\x86\\Release\\";
 	#endif
 #endif
 	}
@@ -1178,6 +1207,8 @@ void RMPG::Graphics::RenderObject(ObjectID id, Object2d* obj)
 	this->drawBuffer.data.objectIndex = index;
 	this->drawBuffer.data.uvOffset = XMFLOAT2(obj->GetCol() * obj->GetTileWidth(), obj->GetRow() * obj->GetTileHeight());
 	this->drawBuffer.data.uvScale = XMFLOAT2(obj->GetScaleU(), obj->GetScaleV());
+	this->drawBuffer.data.tintColor = obj->GetTintColor();
+	this->drawBuffer.data.tintIntensity = obj->GetTintIntensity();
 
 	if (!this->drawBuffer.ApplyChanges())
 		return;
