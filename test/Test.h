@@ -35,6 +35,11 @@ public:
 
 		static auto o = gfx.AddObject(0.5f, 0.5f, 0.0f, tex);
 		gfx.GetObjectPtr(o)->SetAtlas(4.0f, 1.0f);
+		gfx.GetObjectPtr(o)->SetMatrix(XMMatrixTranslation(1.0f, 0.0f, 0.0f));
+
+		grp = gfx.CreateGroup();
+		gfx.AddObjectToGroup(grp, qw);
+		gfx.AddObjectToGroup(grp, o);
 
 		return true;
 	}
@@ -158,6 +163,8 @@ public:
 
 		gfx.GetObjectPtr(txt)->SetMatrix(XMMatrixTranslation(gfx.GetTopLeftWorldCoord().x + 0.6f, gfx.GetTopLeftWorldCoord().y - 0.3f, 0.0f));
 
+		gfx.AdjustGroupRotation(grp, 0.0f, 0.0f, 0.01f);
+
 		/*gfx.objects[ido1]->SetMatrix(XMMatrixTranslation(rot * 0.5f, 0.0f, 0.0f));
 		gfx.objects[ido2]->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(mouseInWorld.x, mouseInWorld.y, 0.0f));
 		gfx.objects[ido3]->SetMatrix(XMMatrixTranslation(1.25f, -0.35f, 0.0f));
@@ -170,6 +177,8 @@ private:
 	RMPG::ObjectID obj;
 	RMPG::ObjectID txt;
 	std::vector<TextRun> runs;
+
+	RMPG::GroupID grp;
 
 	//// objects identificators
 	//int ido1;

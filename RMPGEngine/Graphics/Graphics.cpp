@@ -582,6 +582,7 @@ bool RMPG::Graphics::SetObjectTintColor(ObjectID objectId, const XMFLOAT4& color
 
 bool RMPG::Graphics::RemoveObject(ObjectID objectId)
 {
+	RemoveObjectFromAllGroups(objectId);
 	auto objIt = objects.find(objectId);
 	if (objIt == objects.end())
 	{
@@ -712,6 +713,11 @@ RMPG::Object2d* RMPG::Graphics::GetObjectPtr(ObjectID objectId)
 {
 	auto it = objects.find(objectId);
 	return (it != objects.end()) ? it->second.get() : nullptr;
+}
+
+XMMATRIX RMPG::Graphics::GetObjectWorldMatrix(ObjectID objectId) const
+{
+	return CalculateObjectWorldMatrix(objectId);
 }
 
 RMPG::Texture2d* RMPG::Graphics::GetTexturePtr(TextureID textureId)
@@ -867,6 +873,165 @@ bool RMPG::Graphics::IsWorldPointVisible(const XMFLOAT3& worldPos)
 	return (projPos.x >= -1.0f && projPos.x <= 1.0f &&
 		projPos.y >= -1.0f && projPos.y <= 1.0f &&
 		projPos.z >= 0.0f && projPos.z <= 1.0f);
+}
+
+RMPG::GroupID RMPG::Graphics::CreateGroup()
+{
+	GroupID newId = nextGroupId++;
+	groups[newId] = std::make_unique<Group>();
+	return newId;
+}
+
+bool RMPG::Graphics::DestroyGroup(GroupID groupId)
+{
+	auto it = groups.find(groupId);
+	if (it == groups.end())
+		return false;
+
+	groups.erase(it);
+	return true;
+}
+
+bool RMPG::Graphics::AddObjectToGroup(GroupID groupId, ObjectID objectId)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	auto objIt = objects.find(objectId);
+	if (objIt == objects.end())
+		return false;
+
+	RemoveObjectFromAllGroups(objectId);
+
+	groupIt->second->AddObject(objectId);
+	return true;
+}
+
+bool RMPG::Graphics::RemoveObjectFromGroup(GroupID groupId, ObjectID objectId)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	return groupIt->second->RemoveObject(objectId);
+}
+
+bool RMPG::Graphics::RemoveObjectFromAllGroups(ObjectID objectId)
+{
+	bool removed = false;
+	for (auto& [groupId, group] : groups)
+	{
+		if (group->RemoveObject(objectId))
+			removed = true;
+	}
+	return removed;
+}
+
+bool RMPG::Graphics::SetGroupMatrix(GroupID groupId, const XMMATRIX& matrix)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->SetMatrix(matrix);
+	return true;
+}
+
+bool RMPG::Graphics::SetGroupPosition(GroupID groupId, float x, float y, float z)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->SetPosition(x, y, z);
+	return true;
+}
+
+bool RMPG::Graphics::SetGroupRotation(GroupID groupId, float pitch, float yaw, float roll)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->SetRotation(pitch, yaw, roll);
+	return true;
+}
+
+bool RMPG::Graphics::SetGroupScale(GroupID groupId, float x, float y, float z)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->SetScale(x, y, z);
+	return true;
+}
+
+bool RMPG::Graphics::SetGroupScale(GroupID groupId, float scale)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->SetScale(scale);
+	return true;
+}
+
+bool RMPG::Graphics::AdjustGroupPosition(GroupID groupId, float x, float y, float z)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->AdjustPosition(x, y, z);
+	return true;
+}
+
+bool RMPG::Graphics::AdjustGroupRotation(GroupID groupId, float pitch, float yaw, float roll)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->AdjustRotation(pitch, yaw, roll);
+	return true;
+}
+
+bool RMPG::Graphics::AdjustGroupScale(GroupID groupId, float x, float y, float z)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->AdjustScale(x, y, z);
+	return true;
+}
+
+bool RMPG::Graphics::AdjustGroupScale(GroupID groupId, float scale)
+{
+	auto groupIt = groups.find(groupId);
+	if (groupIt == groups.end())
+		return false;
+
+	groupIt->second->AdjustScale(scale);
+	return true;
+}
+
+bool RMPG::Graphics::GroupExists(GroupID groupId) const
+{
+	return groups.find(groupId) != groups.end();
+}
+
+const RMPG::Group* RMPG::Graphics::GetGroupPtr(GroupID groupId) const
+{
+	auto it = groups.find(groupId);
+	return (it != groups.end()) ? it->second.get() : nullptr;
+}
+
+size_t RMPG::Graphics::GetGroupCount() const
+{
+	return groups.size();
 }
 
 bool RMPG::Graphics::InitializeDirectX(HWND hwnd)
@@ -1167,7 +1332,7 @@ void RMPG::Graphics::UpdatePerObjectBuffer()
 
 	for (const auto& [id, obj] : objects)
 	{
-		XMMATRIX world = obj->GetMatrix();
+		XMMATRIX world = CalculateObjectWorldMatrix(id);
 		XMMATRIX wvp = XMMatrixTranspose(world * view * proj);
 		XMFLOAT4X4 f;
 		XMStoreFloat4x4(&f, wvp);
@@ -1265,4 +1430,30 @@ bool RMPG::Graphics::CreateSamplerStates()
 	}
 
 	return true;
+}
+
+XMMATRIX RMPG::Graphics::CalculateObjectWorldMatrix(ObjectID objectId) const
+{
+	auto objIt = objects.find(objectId);
+	if (objIt == objects.end())
+		return XMMatrixIdentity();
+
+	Group* containingGroup = nullptr;
+	for (const auto& [groupId, group] : groups)
+	{
+		if (group->ContainsObject(objectId))
+		{
+			containingGroup = group.get();
+			break;
+		}
+	}
+
+	XMMATRIX objectMatrix = objIt->second->GetMatrix();
+
+	if (containingGroup)
+	{
+		return objectMatrix * containingGroup->GetMatrix();
+	}
+
+	return objectMatrix;
 }

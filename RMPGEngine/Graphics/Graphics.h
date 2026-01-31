@@ -20,6 +20,7 @@
 #include <locale>
 #include <codecvt>
 #include "Font.h"
+#include "Group.h"
 
 namespace RMPG
 {
@@ -39,8 +40,6 @@ namespace RMPG
 		float width;
 		float height;
 	};
-
-	using ObjectID = int;
 	using TextureID = int;
 
 	class Graphics
@@ -74,6 +73,7 @@ namespace RMPG
 		bool RemoveAllTextures();
 
 		RMPG::Object2d* GetObjectPtr(ObjectID objectId);
+		XMMATRIX GetObjectWorldMatrix(ObjectID objectId) const;
 		RMPG::Texture2d* GetTexturePtr(TextureID textureId);
 
 		XMFLOAT4 GetObjectTintColor(ObjectID objectId) const;
@@ -96,6 +96,27 @@ namespace RMPG
 		XMFLOAT2 WorldToScreenCoord(const XMFLOAT3& worldPos);
 		bool IsWorldPointVisible(const XMFLOAT3& worldPos);
 
+		GroupID CreateGroup();
+		bool DestroyGroup(GroupID groupId);
+		bool AddObjectToGroup(GroupID groupId, ObjectID objectId);
+		bool RemoveObjectFromGroup(GroupID groupId, ObjectID objectId);
+		bool RemoveObjectFromAllGroups(ObjectID objectId);
+
+		bool SetGroupMatrix(GroupID groupId, const XMMATRIX& matrix);
+		bool SetGroupPosition(GroupID groupId, float x, float y, float z);
+		bool SetGroupRotation(GroupID groupId, float pitch, float yaw, float roll);
+		bool SetGroupScale(GroupID groupId, float x, float y, float z);
+		bool SetGroupScale(GroupID groupId, float scale);
+
+		bool AdjustGroupPosition(GroupID groupId, float x, float y, float z);
+		bool AdjustGroupRotation(GroupID groupId, float pitch, float yaw, float roll);
+		bool AdjustGroupScale(GroupID groupId, float x, float y, float z);
+		bool AdjustGroupScale(GroupID groupId, float scale);
+
+		bool GroupExists(GroupID groupId) const;
+		const Group* GetGroupPtr(GroupID groupId) const;
+		size_t GetGroupCount() const;
+
 	private:
 		bool InitializeDirectX(HWND hwnd);
 		bool InitializeShaders();
@@ -110,6 +131,8 @@ namespace RMPG
 		void RenderObject(ObjectID id, Object2d* obj);
 
 		bool CreateSamplerStates();
+
+		XMMATRIX CalculateObjectWorldMatrix(ObjectID objectId) const;
 
 		Microsoft::WRL::ComPtr<ID3D11Device> device;
 		Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext;
@@ -148,9 +171,11 @@ namespace RMPG
 
 		std::map<ObjectID, std::unique_ptr<Object2d>> objects;
 		std::map<TextureID, std::unique_ptr<Texture2d>> textures;
+		std::map<GroupID, std::unique_ptr<Group>> groups;
 
 		ObjectID nextObjectId = 0;
 		TextureID nextTextureId = 0;
+		GroupID nextGroupId = 0;
 
 		std::map<TextureID, std::unique_ptr<Texture2d>> dynamicTextures;
 		std::map<TextureID, DynamicTextMeta> dynamicTextMeta;

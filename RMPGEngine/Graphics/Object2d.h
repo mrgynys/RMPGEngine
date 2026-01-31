@@ -10,6 +10,8 @@ using namespace DirectX;
 
 namespace RMPG
 {
+	using ObjectID = int;
+
 	class Object2d
 	{
 	public:
