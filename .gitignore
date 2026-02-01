@@ -18,3 +18,4 @@ RMPGEngine/x64
 *.exe
 *.dll
 .ipch/
+*.ini

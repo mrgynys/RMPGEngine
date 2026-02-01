@@ -1,5 +1,6 @@
 #pragma once
 #include "Engine.h"
+#include "Config.h"
 
 class Test : public Engine
 {
@@ -21,6 +22,25 @@ public:
 		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 48, 0xFF00FF00u });
 		idt2 = gfx.AddStyledTextObject(runs, 0.0f, 0.01f);*/
 
+		if (!cfg.FileExists())
+		{
+			cfg.SetInt(L"Window", L"Width", 800);
+			cfg.SetInt(L"Window", L"Height", 600);
+			cfg.SetInt(L"Window", L"Fullscreen", 0);
+			cfg.SetInt(L"Window", L"Windowed", 1);
+			cfg.SetString(L"Textures", L"Skeleton", L"Data\\Textures\\skeleton.png");
+		}
+
+		int WinWidth = cfg.GetInt(L"Window", L"Width", 800);
+		int WinHeight = cfg.GetInt(L"Window", L"Height", 600);
+		int WinFS	= cfg.GetInt(L"Window", L"Fullscreen", 0);
+		int WinWdw	= cfg.GetInt(L"Window", L"Windowed", 1);
+
+		render_window.SetFullScreen(WinFS > 0 ? true : false);
+		gfx.SetFullScreen(WinFS > 0 and WinWdw < 1 ? true : false);
+		render_window.SetWindowSize(WinWidth, WinHeight);
+		gfx.Resize(WinWidth, WinHeight);
+
 		static auto t = gfx.AddTexture(L"Data\\Textures\\green_button.png");
 		static auto qw = gfx.AddObject(3.0f, 0.6f, 0.0f, t);
 
@@ -28,9 +48,9 @@ public:
 		obj = gfx.AddObject(1.0f, 1.0f, 0.0f, tex);
 		gfx.GetObjectPtr(obj)->SetAtlas(4.0f, 1.0f);
 
-		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 32, 0xFF00FF00u });
-		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 32, 0xFFFFFFFFu });
-		txt = gfx.AddStyledTextObject(runs, 0.0f, 0.01f);
+		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 64, 0xFF00FF00u });
+		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 64, 0xFFFFFFFFu });
+		txt = gfx.AddStyledTextObject(runs, 0.0f, 0.003f);
 		gfx.GetObjectPtr(txt)->texture->filter = RMPG::TextureFilterMode::Linear;
 
 		static auto o = gfx.AddObject(0.5f, 0.5f, 0.0f, tex);
@@ -84,26 +104,47 @@ public:
 
 		if (keyboard.KeyIsPressed('Q'))
 		{
-			gfx.Resize(800, 600);
 			render_window.SetFullScreen(false);
+			gfx.SetFullScreen(false);
 			render_window.SetWindowSize(800, 600);
+			gfx.Resize(800, 600);
+			cfg.SetInt(L"Window", L"Width", 800);
+			cfg.SetInt(L"Window", L"Height", 600);
+			cfg.SetInt(L"Window", L"Fullscreen", 0);
+			cfg.SetInt(L"Window", L"Windowed", 0);
 		}
 		if (keyboard.KeyIsPressed('W'))
 		{
-			gfx.Resize(1000, 500);
 			render_window.SetFullScreen(false);
+			gfx.SetFullScreen(false);
 			render_window.SetWindowSize(1000, 500);
+			gfx.Resize(1000, 500);
+			cfg.SetInt(L"Window", L"Width", 1000);
+			cfg.SetInt(L"Window", L"Height", 500);
+			cfg.SetInt(L"Window", L"Fullscreen", 0);
+			cfg.SetInt(L"Window", L"Windowed", 0);
 		}
 		if (keyboard.KeyIsPressed('E'))
 		{
-			gfx.Resize(800, 600);
 			render_window.SetFullScreen(false);
-			render_window.SetWindowSize(800, 600);
+			gfx.SetFullScreen(false);
+			render_window.SetWindowSize(400, 300);
+			gfx.Resize(400, 300);
+			cfg.SetInt(L"Window", L"Width", 400);
+			cfg.SetInt(L"Window", L"Height", 300);
+			cfg.SetInt(L"Window", L"Fullscreen", 0);
+			cfg.SetInt(L"Window", L"Windowed", 0);
 		}
 		if (keyboard.KeyIsPressed('R'))
 		{
-			gfx.Resize(1366, 768);
 			render_window.SetFullScreen(true);
+			gfx.SetFullScreen(true);
+			render_window.SetWindowSize(1366, 768);
+			gfx.Resize(1366, 768);
+			cfg.SetInt(L"Window", L"Width", 1366);
+			cfg.SetInt(L"Window", L"Height", 768);
+			cfg.SetInt(L"Window", L"Fullscreen", 1);
+			cfg.SetInt(L"Window", L"Windowed", 1);
 		}
 		if (keyboard.KeyIsPressed('A'))
 		{
@@ -145,6 +186,10 @@ public:
 
 		runs[1].text = std::to_wstring(gfx.GetFps());
 		gfx.UpdateStyledTextObject(txt, runs);
+		float q = gfx.GetObjectPtr(txt)->GetWidth();
+		float w = gfx.GetObjectPtr(txt)->GetHeight();
+		gfx.GetObjectPtr(txt)->SetMatrix(XMMatrixTranslation(gfx.GetTopLeftWorldCoord().x + (q / 2), gfx.GetTopLeftWorldCoord().y - (w / 2), 0.0f));
+
 	}
 
 	void FixedUpdate() override
@@ -161,8 +206,6 @@ public:
 
 		gfx.GetObjectPtr(obj)->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(0.3f, 0.0f, 0.0f));
 
-		gfx.GetObjectPtr(txt)->SetMatrix(XMMatrixTranslation(gfx.GetTopLeftWorldCoord().x + 0.6f, gfx.GetTopLeftWorldCoord().y - 0.3f, 0.0f));
-
 		gfx.AdjustGroupRotation(grp, 0.0f, 0.0f, 0.01f);
 
 		/*gfx.objects[ido1]->SetMatrix(XMMatrixTranslation(rot * 0.5f, 0.0f, 0.0f));
@@ -173,6 +216,8 @@ public:
 	}
 
 private:
+	Config cfg;
+
 	RMPG::TextureID tex;
 	RMPG::ObjectID obj;
 	RMPG::ObjectID txt;
