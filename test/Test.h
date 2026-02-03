@@ -53,7 +53,7 @@ public:
 		txt = gfx.AddStyledTextObject(runs, 0.0f, 0.003f);
 		gfx.GetObjectPtr(txt)->texture->filter = RMPG::TextureFilterMode::Linear;
 
-		static auto o = gfx.AddObject(0.5f, 0.5f, 0.0f, tex);
+		static auto o = gfx.AddObject(0.5f, 0.5f, -0.01f, tex);
 		gfx.GetObjectPtr(o)->SetAtlas(4.0f, 1.0f);
 		gfx.GetObjectPtr(o)->SetMatrix(XMMatrixTranslation(1.0f, 0.0f, 0.0f));
 
@@ -204,9 +204,9 @@ public:
 			mouseInWorld = gfx.ScreenToWorldOnPlane(mouse.GetPosX(), mouse.GetPosY());
 		}
 
-		gfx.GetObjectPtr(obj)->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(0.3f, 0.0f, 0.0f));
+		gfx.GetObjectPtr(obj)->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(0.3f, 0.0f, -1.0f));
 
-		gfx.AdjustGroupRotation(grp, 0.0f, 0.0f, 0.01f);
+		gfx.AdjustGroupRotation(grp, 0.0f, 0.01f, 0.0f);
 
 		/*gfx.objects[ido1]->SetMatrix(XMMatrixTranslation(rot * 0.5f, 0.0f, 0.0f));
 		gfx.objects[ido2]->SetMatrix(XMMatrixRotationZ(rot) * XMMatrixTranslation(mouseInWorld.x, mouseInWorld.y, 0.0f));

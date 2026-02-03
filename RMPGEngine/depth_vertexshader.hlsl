@@ -1,0 +1,39 @@
+StructuredBuffer<float4x4> PerObjects : register(t0);
+
+cbuffer Draw : register(b0)
+{
+    uint objectIndex;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+    float2 uvOffset;
+    float2 uvScale;
+    float4 tintColor;
+    float tintIntensity;
+    float pad3;
+    float pad4;
+    float pad5;
+};
+
+struct VS_INPUT
+{
+    float3 inPos : POSITION;
+    float2 inTexCoord : TEXCOORD;
+};
+
+struct VS_OUTPUT
+{
+    float4 outPosition : SV_POSITION;
+    float4 outDepth : TEXTURE0;
+    float2 outTexCoord : TEXCOORD1;
+};
+
+VS_OUTPUT main(VS_INPUT input)
+{
+    VS_OUTPUT output;
+    float4 worldPos = float4(input.inPos, 1.0f);
+    output.outPosition = mul(worldPos, PerObjects[objectIndex]);
+    output.outDepth = output.outPosition;
+    output.outTexCoord = input.inTexCoord * uvScale + uvOffset;
+    return output;
+}

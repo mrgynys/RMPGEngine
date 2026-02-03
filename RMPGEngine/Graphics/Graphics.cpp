@@ -31,29 +31,41 @@ void RMPG::Graphics::RenderFrame()
 	this->deviceContext->ClearRenderTargetView(this->renderTargetView.Get(), bgcolor);
 	this->deviceContext->ClearDepthStencilView(this->depthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 	
-	this->deviceContext->IASetInputLayout(this->vertexshader.GetInputLayout());
+	this->deviceContext->IASetInputLayout(this->depth_vertexshader.GetInputLayout());
+	//this->deviceContext->IASetInputLayout(this->vertexshader.GetInputLayout());
 	this->deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	this->deviceContext->RSSetState(this->rasterizerState.Get());
 	this->deviceContext->OMSetDepthStencilState(this->depthStencilState.Get(), 0);
+	
+	this->deviceContext->VSSetShader(depth_vertexshader.GetShader(), NULL, 0);
+	this->deviceContext->PSSetShader(depth_pixelshader.GetShader(), NULL, 0);
+	//this->deviceContext->VSSetShader(vertexshader.GetShader(), NULL, 0);
+	//this->deviceContext->PSSetShader(pixelshader.GetShader(), NULL, 0);
+
+	ID3D11RenderTargetView* nulllRTV = nullptr;
+	this->deviceContext->OMSetRenderTargets(0, &nulllRTV, this->depthStencilView.Get());
+
+	RenderDepthPass();
+
+	this->deviceContext->OMSetRenderTargets(1, this->renderTargetView.GetAddressOf(), this->depthStencilView.Get());
+	this->deviceContext->IASetInputLayout(this->vertexshader.GetInputLayout());
 	this->deviceContext->VSSetShader(vertexshader.GetShader(), NULL, 0);
 	this->deviceContext->PSSetShader(pixelshader.GetShader(), NULL, 0);
 
-	UpdatePerObjectBuffer();
+	D3D11_DEPTH_STENCIL_DESC depthDesc;
+	ZeroMemory(&depthDesc, sizeof(depthDesc));
+	depthDesc.DepthEnable = true;
+	depthDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	depthDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 
-	if (!objects.empty())
-	{
-		this->deviceContext->VSSetShaderResources(0, 1, this->perObjectSRV.GetAddressOf());
-	}
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depthReadOnlyState;
+	this->device->CreateDepthStencilState(&depthDesc, depthReadOnlyState.GetAddressOf());
+	this->deviceContext->OMSetDepthStencilState(depthReadOnlyState.Get(), 0);
 
-	UINT offset = 0;
+	float blendFactor[4] = { 0.0f,0.0f,0.0f,0.0f };
+	this->deviceContext->OMSetBlendState(this->blendState.Get(), blendFactor, 0xFFFFFFFF);
 
-	XMMATRIX view = this->camera.GetViewMatrix();
-	XMMATRIX proj = this->camera.GetProjectionMatrix();
-
-	for (auto& [objectId, obj] : objects)
-	{
-		RenderObject(objectId, obj.get());
-	}
+	RenderColorPass();
 
 	fpsCounter += 1;
 	if (fpsTimer.GetMilisecondsElapsed() > 1000.0)
@@ -1235,6 +1247,20 @@ bool RMPG::Graphics::InitializeShaders()
 	if (!pixelshader.Initialize(this->device, shaderfolder + L"pixelshader.cso"))
 		return false;
 
+	D3D11_INPUT_ELEMENT_DESC depthLayout[] =
+	{
+		{"POSITION", 0, DXGI_FORMAT::DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_CLASSIFICATION::D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{"TEXCOORD", 0, DXGI_FORMAT::DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_CLASSIFICATION::D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+
+	numElements = ARRAYSIZE(depthLayout);
+
+	if (!depth_vertexshader.Initialize(this->device, shaderfolder + L"depth_vertexshader.cso", depthLayout, numElements))
+		return false;
+
+	if (!depth_pixelshader.Initialize(this->device, shaderfolder + L"depth_pixelshader.cso"))
+		return false;
+
 	return true;
 }
 
@@ -1374,6 +1400,70 @@ void RMPG::Graphics::RenderObject(ObjectID id, Object2d* obj)
 	this->drawBuffer.data.uvScale = XMFLOAT2(obj->GetScaleU(), obj->GetScaleV());
 	this->drawBuffer.data.tintColor = obj->GetTintColor();
 	this->drawBuffer.data.tintIntensity = obj->GetTintIntensity();
+
+	if (!this->drawBuffer.ApplyChanges())
+		return;
+
+	this->deviceContext->VSSetConstantBuffers(0, 1, this->drawBuffer.GetAddressOf());
+	this->deviceContext->PSSetConstantBuffers(0, 1, this->drawBuffer.GetAddressOf());
+
+	if (obj->texture)
+	{
+		this->deviceContext->PSSetShaderResources(0, 1, obj->texture->GetAddressOf());
+	}
+
+	this->deviceContext->IASetVertexBuffers(0, 1, obj->vertexBuffer.GetAddressOf(), obj->vertexBuffer.StridePtr(), &offset);
+	this->deviceContext->IASetIndexBuffer(indicesBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+	this->deviceContext->DrawIndexed(indicesBuffer.BufferSize(), 0, 0);
+}
+
+void RMPG::Graphics::RenderDepthPass()
+{
+	UpdatePerObjectBuffer();
+
+	if (!objects.empty())
+	{
+		this->deviceContext->VSSetShaderResources(0, 1, this->perObjectSRV.GetAddressOf());
+	}
+
+	for (const auto& [objectId, obj] : objects)
+	{
+		RenderObjectForDepth(objectId, obj.get());
+	}
+}
+
+void RMPG::Graphics::RenderColorPass()
+{
+	UpdatePerObjectBuffer();
+
+	if (!objects.empty())
+	{
+		this->deviceContext->VSSetShaderResources(0, 1, this->perObjectSRV.GetAddressOf());
+	}
+
+	for (const auto& [objectId, obj] : objects)
+	{
+		RenderObject(objectId, obj.get());
+	}
+}
+
+void RMPG::Graphics::RenderObjectForDepth(ObjectID id, Object2d* obj)
+{
+	if (!obj) return;
+
+	UINT offset = 0;
+
+	int index = 0;
+	for (auto it = objects.begin(); it != objects.end(); ++it, ++index)
+	{
+		if (it->first == id) break;
+	}
+
+	this->drawBuffer.data.objectIndex = index;
+	this->drawBuffer.data.uvOffset = XMFLOAT2(obj->GetCol() * obj->GetTileWidth(), obj->GetRow() * obj->GetTileHeight());
+	this->drawBuffer.data.uvScale = XMFLOAT2(obj->GetScaleU(), obj->GetScaleV());
+	this->drawBuffer.data.tintColor = XMFLOAT4(1, 1, 1, 1);
+	this->drawBuffer.data.tintIntensity = 0.0f;
 
 	if (!this->drawBuffer.ApplyChanges())
 		return;

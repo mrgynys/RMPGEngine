@@ -129,6 +129,9 @@ namespace RMPG
 
 		void UpdatePerObjectBuffer();
 		void RenderObject(ObjectID id, Object2d* obj);
+		void RenderDepthPass();
+		void RenderColorPass();
+		void RenderObjectForDepth(ObjectID id, Object2d* obj);
 
 		bool CreateSamplerStates();
 
@@ -141,6 +144,8 @@ namespace RMPG
 
 		VertexShader vertexshader;
 		PixelShader pixelshader;
+		VertexShader depth_vertexshader;
+		PixelShader depth_pixelshader;
 
 		ConstantBuffer<CBDraw> drawBuffer;
 
