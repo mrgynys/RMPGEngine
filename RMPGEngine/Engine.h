@@ -5,7 +5,7 @@
 class Engine : public WindowContainer
 {
 public:
-	bool Initialize(HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height);
+	bool Initialize(HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height, int icon = -1);
 	bool ProcessMessages();
 	void EngineUpdate();
 	void RenderFrame();

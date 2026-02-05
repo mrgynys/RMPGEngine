@@ -1,6 +1,6 @@
 #include "WindowContainer.h"
 
-bool RenderWindow::Initialize(WindowContainer* pWindowContainer, HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height)
+bool RenderWindow::Initialize(WindowContainer* pWindowContainer, HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height, int icon)
 {
 	this->hInstance = hInstance;
 	this->window_title = window_title;
@@ -9,6 +9,7 @@ bool RenderWindow::Initialize(WindowContainer* pWindowContainer, HINSTANCE hInst
 	this->window_class_wide = StringConverter::StringToWide(this->window_class);
 	this->width = width;
 	this->height = height;
+	this->iconIndex = icon;
 	
 	this->RegisterWindowClass();
 
@@ -226,8 +227,8 @@ void RenderWindow::RegisterWindowClass()
 	wc.cbClsExtra = 0;
 	wc.cbWndExtra = 0;
 	wc.hInstance = this->hInstance;
-	wc.hIcon = NULL;
-	wc.hIconSm = NULL;
+	wc.hIcon = iconIndex < 0 ? NULL : LoadIcon(this->hInstance, MAKEINTRESOURCE(iconIndex));
+	wc.hIconSm = iconIndex < 0 ? NULL : LoadIcon(this->hInstance, MAKEINTRESOURCE(iconIndex));
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wc.hbrBackground = NULL;
 	wc.lpszMenuName = NULL;

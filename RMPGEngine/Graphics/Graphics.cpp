@@ -211,7 +211,7 @@ std::vector<RMPG::ObjectID> RMPG::Graphics::PickObjectsAt(int mouseX, int mouseY
 
 	for (const auto& [id, obj] : objects)
 	{
-		XMMATRIX world = obj->GetMatrix();
+		XMMATRIX world = CalculateObjectWorldMatrix(id); //obj->GetMatrix();
 		XMMATRIX invWorld = XMMatrixInverse(nullptr, world);
 
 		XMVECTOR localOrigin = XMVector3TransformCoord(XMLoadFloat3(&rayOriginF), invWorld);

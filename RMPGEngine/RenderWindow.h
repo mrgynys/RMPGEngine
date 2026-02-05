@@ -6,7 +6,7 @@ class WindowContainer;
 class RenderWindow
 {
 public:
-	bool Initialize(WindowContainer* pWindowContainer, HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height);
+	bool Initialize(WindowContainer* pWindowContainer, HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height, int icon = -1);
 	bool ProcessMessages();
 	HWND GetHWND() const;
 	bool SetWindowSize(int width, int height);
@@ -29,4 +29,5 @@ private:
 	LONG_PTR savedStyle = 0;
 	LONG_PTR savedExStyle = 0;
 
+	int iconIndex;
 };

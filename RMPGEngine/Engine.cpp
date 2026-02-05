@@ -1,10 +1,10 @@
 #include "Engine.h"
 
-bool Engine::Initialize(HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height)
+bool Engine::Initialize(HINSTANCE hInstance, std::string window_title, std::string window_class, int width, int height, int icon)
 {
 	timer.Start();
 
-	if (!this->render_window.Initialize(this, hInstance, window_title, window_class, width, height))
+	if (!this->render_window.Initialize(this, hInstance, window_title, window_class, width, height, icon))
 		return false;
 
 	if (!gfx.Initialize(this->render_window.GetHWND(), width, height))
