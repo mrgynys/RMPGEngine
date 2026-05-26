@@ -61,6 +61,16 @@ public:
 		gfx.AddObjectToGroup(grp, qw);
 		gfx.AddObjectToGroup(grp, o);
 
+		newtxt = gfx.AddTextObjectFromFontFile(RMPG::ttf(RMPG::FONTS::LORA_REGULAR), L"hello, world!\nMaybe I was talking about some cool shit but can u give me the whiskey on da freaking rocks?\nqwe", 64, 0, 0.01f);
+		gfx.GetObjectPtr(newtxt)->texture->filter = RMPG::TextureFilterMode::Linear;
+
+		RMPG::SoundID ssid1 = audio.LoadWav(L"Data/Sounds/shieldL.wav");
+		RMPG::SoundID ssid2 = audio.LoadWav(L"Data/Sounds/restA.wav");
+		RMPG::EffectID efid1 = audio.AddEffect(ssid1);
+		audio.PlayAfx(efid1);
+		RMPG::EffectID efid2 = audio.AddEffect(ssid2);
+		audio.PlayAfx(efid2);
+
 		return true;
 	}
 
@@ -68,6 +78,7 @@ public:
 		while (this->ProcessMessages())
 		{
 			this->EngineUpdate();
+			this->AudioUpdate();
 			this->RenderFrame();
 		}
 	}
@@ -170,10 +181,12 @@ public:
 		}
 
 		static float redLayout = 0.5f;
+		//static float
 		if (mouse.GetWheelDelta() < 0)
 		{
 			redLayout -= 0.1f;
 			if (redLayout < 0.0f) redLayout = 0.0f;
+
 		}
 		if (mouse.GetWheelDelta() > 0)
 		{
@@ -189,7 +202,6 @@ public:
 		float q = gfx.GetObjectPtr(txt)->GetWidth();
 		float w = gfx.GetObjectPtr(txt)->GetHeight();
 		gfx.GetObjectPtr(txt)->SetMatrix(XMMatrixTranslation(gfx.GetTopLeftWorldCoord().x + (q / 2), gfx.GetTopLeftWorldCoord().y - (w / 2), 0.0f));
-
 	}
 
 	void FixedUpdate() override
@@ -224,6 +236,8 @@ private:
 	std::vector<TextRun> runs;
 
 	RMPG::GroupID grp;
+
+	RMPG::ObjectID newtxt;
 
 	//// objects identificators
 	//int ido1;
