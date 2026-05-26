@@ -95,3 +95,85 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 Соберите и запустите проект. На экране должно появиться окно 400х300 с серым фоном и именем окна *Hello, world!*.
 
 Если на данном этапе нет никаких ошибок **CoInitialize**, движка, *DirectX*, *Windows* и *GDI+*, то вы все сделали правильно. В награду вы получили проект, готовый к работе с движком **RMPGEngine**.
+
+# Разработка проекта
+## Класс Game
+Для разработки игры с использованием RMPGEngine необходимо создать класс, который будет наследником класса **Engine**. Ниже как пример приведен минимальный класс **Game**.
+
+*Game.h*
+```cpp
+#pragma once
+#include "Engine.h"
+
+class Game : public Engine
+{
+public:
+	// метод инициализации игры
+	bool GameInitialize() {
+        // реализация:
+		//   - загрузки файла конфигурации,
+		//   - установки настроек видео и аудио,
+		//   - загрузки текстур и звуков,
+		//	 - создания объектов,
+		//   - и всего остального, что должно происходить при запуске игры.
+
+		return true; // если во время иниицализации не возникло ошибок, возвращаем true
+	}
+
+	// метод игрового цикла
+	void Run() {
+		// игровой цикл
+		while (this->ProcessMessages()) {
+			// обязательные 3 строчки для работы игры:
+			this->EngineUpdate();
+			this->AudioUpdate();
+			this->RenderFrame();
+		}
+	}
+
+	// реализация виртуального метода Engine::Update()
+	void Update() override {
+		// реализация логики всех процессов, которые должны обновляться постоянно
+
+		// к таким процессам относятся обработка ввода мыши и клавиатуры, изменение
+		// параметров объектов и т.д.
+	}
+
+	// реализация виртуального метода Engine::FixedUpdate()
+	void FixedUpdate() override {
+		// реализация логики всех процессоов, которые должны обновляться с частотой 60 фпс
+
+		// в отличие от Update(), данная функция вызывается с фиксированной частотой, вне зависимости
+		// от текущей частоты отрисовки
+
+		// FixedUpdate() используется, например, для обновления зависимых от частоты кадров анимаций
+	}
+};
+```
+
+Приведенный в прошлом разделе "Hello, World!" модифицируется следующим образом:
+
+```cpp
+#include "Game.h"
+
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+	_In_opt_ HINSTANCE hPrevInstance,
+	_In_ LPWSTR	lpCmdLine,
+	_In_ int	nCmdShow)
+{
+	HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	if (FAILED(hr))
+	{
+		ErrorLogger::Log(hr, "Failed to call CoInitialize");
+		return -1;
+	}
+
+	Game game;
+	game.Initialize(hInstance, "RMPG", "GameClass", 800, 600);
+	if (!game.GameInitialize())
+		return -1;
+	game.Run();
+	
+	return 0;
+}
+```
