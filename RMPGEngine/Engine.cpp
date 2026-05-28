@@ -32,10 +32,10 @@ void Engine::EngineUpdate()
 
 	accumulator += dt;
 
-	while (!keyboard.CharBufferIsEmpty())
-	{
-		unsigned char ch = keyboard.ReadChar();
-	}
+	//while (!keyboard.CharBufferIsEmpty())
+	//{
+	//	unsigned char ch = keyboard.ReadChar();
+	//}
 
 	while (!keyboard.KeyBufferIsEmpty())
 	{

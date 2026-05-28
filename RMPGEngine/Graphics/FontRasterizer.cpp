@@ -117,6 +117,44 @@ HRESULT RasterizeTextToBGRA(
     return S_OK;
 }
 
+struct TextFragment
+{
+    std::wstring text;
+    int fontPixelSize;
+    std::wstring fontFile;
+    UINT32 argbColor;
+    std::unique_ptr<PrivateFontCollection> pfc;
+    bool endsWithLineBreak;
+};
+
+std::vector<TextFragment> SplitRunIntoFragments(const TextRun& run)
+{
+    std::vector<TextFragment> fragments;
+    std::wstring current;
+    for (size_t i = 0; i < run.text.size(); ++i)
+    {
+        if (run.text[i] == L'\n')
+        {
+            if (!current.empty())
+                fragments.push_back({ current, run.fontPixelSize, run.fontFile, run.argbColor, nullptr, true });
+            else
+                fragments.push_back({ L"", run.fontPixelSize, run.fontFile, run.argbColor, nullptr, true });
+            current.clear();
+        }
+        else
+        {
+            current += run.text[i];
+        }
+    }
+
+    if (!current.empty() || fragments.empty())
+        fragments.push_back({ current, run.fontPixelSize, run.fontFile, run.argbColor, nullptr, false });
+    else if (!fragments.empty())
+        fragments.back().endsWithLineBreak = false;
+
+    return fragments;
+}
+
 HRESULT RasterizeTextRunsToBGRA(
     const std::vector<TextRun>& runs,
     std::vector<unsigned char>& outPixels,
@@ -131,75 +169,82 @@ HRESULT RasterizeTextRunsToBGRA(
     if (runs.empty())
         return S_OK;
 
-    struct RunMeasure
+    std::vector<TextFragment> allFragments;
+    for (const auto& run : runs)
     {
-        float width = 0.0f;
-        float ascent = 0.0f;
-        float descent = 0.0f;
-        int pixelSize = 0;
-        std::unique_ptr<PrivateFontCollection> pfc; // keep font collection alive
+        auto frags = SplitRunIntoFragments(run);
+        for (auto& frag : frags)
+        {
+            auto pfc = std::make_unique<PrivateFontCollection>();
+            if (pfc->AddFontFile(frag.fontFile.c_str()) != Ok)
+                return E_FAIL;
+            frag.pfc = std::move(pfc);
+        }
+        allFragments.insert(allFragments.end(), std::move_iterator(frags.begin()), std::move_iterator(frags.end()));
+    }
+
+    struct Line
+    {
+        std::vector<TextFragment*> fragments;
+        float totalWidth = 0.0f;
+        float maxAscent = 0.0f;
+        float maxDescent = 0.0f;
     };
-    std::vector<RunMeasure> measures;
-    measures.reserve(runs.size());
+    std::vector<Line> lines;
+    Line currentLine;
 
     Bitmap tmpBmp(1, 1, PixelFormat32bppARGB);
     Graphics measureG(&tmpBmp);
     measureG.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
 
-    float maxAscent = 0.0f, maxDescent = 0.0f;
-    float totalWidth = 0.0f;
-
-    for (const auto& r : runs)
+    for (auto& frag : allFragments)
     {
-        auto pfc = std::make_unique<PrivateFontCollection>();
-        if (pfc->AddFontFile(r.fontFile.c_str()) != Ok)
-            return E_FAIL;
-
-        int famCount = pfc->GetFamilyCount();
-        if (famCount <= 0)
-            return E_FAIL;
-
-        std::unique_ptr<FontFamily[]> families(new FontFamily[famCount]);
+        FontFamily family;
         int retrieved = 0;
-        pfc->GetFamilies(famCount, families.get(), &retrieved);
+        frag.pfc->GetFamilies(1, &family, &retrieved);
         if (retrieved <= 0)
             return E_FAIL;
+        Font font(&family, static_cast<REAL>(frag.fontPixelSize), FontStyleRegular, UnitPixel);
 
-        // use local family instance for measuring (no storing of FontFamily)
-        FontFamily& familyRef = families[0];
-        Font font(&familyRef, static_cast<REAL>(r.fontPixelSize), FontStyleRegular, UnitPixel);
-
+        RectF layout, bound;
         StringFormat fmt = StringFormat::GenericTypographic();
         fmt.SetFormatFlags(StringFormatFlagsMeasureTrailingSpaces);
+        Status st = measureG.MeasureString(frag.text.c_str(), -1, &font, layout, &bound);
+        float width = (st == Ok) ? bound.Width : (frag.text.length() * frag.fontPixelSize * 0.6f);
+        frag.text = frag.text;
+        int emHeight = family.GetEmHeight(FontStyleRegular);
+        int cellAscent = family.GetCellAscent(FontStyleRegular);
+        int cellDescent = family.GetCellDescent(FontStyleRegular);
+        float ascentPx = (static_cast<float>(frag.fontPixelSize) * cellAscent) / static_cast<float>(emHeight);
+        float descentPx = (static_cast<float>(frag.fontPixelSize) * cellDescent) / static_cast<float>(emHeight);
 
-        RectF layout;
-        RectF bound;
-        Status st = measureG.MeasureString(r.text.c_str(), -1, &font, layout, &bound);
-        float w = (st == Ok) ? bound.Width : (r.text.length() * r.fontPixelSize * 0.6f);
+        currentLine.fragments.push_back(&frag);
+        currentLine.totalWidth += width;
+        if (ascentPx > currentLine.maxAscent) currentLine.maxAscent = ascentPx;
+        if (descentPx > currentLine.maxDescent) currentLine.maxDescent = descentPx;
 
-        int emHeight = familyRef.GetEmHeight(FontStyleRegular);
-        int cellAscent = familyRef.GetCellAscent(FontStyleRegular);
-        int cellDescent = familyRef.GetCellDescent(FontStyleRegular);
-
-        float ascentPx = (static_cast<float>(r.fontPixelSize) * cellAscent) / static_cast<float>(emHeight);
-        float descentPx = (static_cast<float>(r.fontPixelSize) * cellDescent) / static_cast<float>(emHeight);
-
-        RunMeasure rm;
-        rm.width = w;
-        rm.ascent = ascentPx;
-        rm.descent = descentPx;
-        rm.pixelSize = r.fontPixelSize;
-        rm.pfc = std::move(pfc); // store pfc so font family remains available later
-
-        measures.push_back(std::move(rm));
-
-        if (ascentPx > maxAscent) maxAscent = ascentPx;
-        if (descentPx > maxDescent) maxDescent = descentPx;
-        totalWidth += w;
+        if (frag.endsWithLineBreak)
+        {
+            lines.push_back(std::move(currentLine));
+            currentLine = Line();
+        }
     }
 
-    int bmpW = static_cast<int>(ceil(totalWidth)) + padding * 2;
-    int bmpH = static_cast<int>(ceil(maxAscent + maxDescent)) + padding * 2;
+    if (!currentLine.fragments.empty() || lines.empty())
+        lines.push_back(std::move(currentLine));
+
+    float maxLineWidth = 0.0f;
+    float totalHeight = 0.0f;
+    std::vector<float> lineHeights;
+    for (const auto& line : lines)
+    {
+        if (line.totalWidth > maxLineWidth) maxLineWidth = line.totalWidth;
+        float lineHeight = line.maxAscent + line.maxDescent;
+        lineHeights.push_back(lineHeight);
+        totalHeight += lineHeight;
+    }
+    int bmpW = static_cast<int>(ceil(maxLineWidth)) + padding * 2;
+    int bmpH = static_cast<int>(ceil(totalHeight)) + padding * 2;
     if (bmpW <= 0) bmpW = 1;
     if (bmpH <= 0) bmpH = 1;
 
@@ -208,36 +253,46 @@ HRESULT RasterizeTextRunsToBGRA(
     g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
     g.Clear(Color(0, 0, 0, 0));
 
-    float x = static_cast<float>(padding);
-    for (size_t i = 0; i < runs.size(); ++i)
+    float yOffset = static_cast<float>(padding);
+    for (size_t lineIdx = 0; lineIdx < lines.size(); ++lineIdx)
     {
-        const auto& r = runs[i];
-        const auto& m = measures[i];
+        const auto& line = lines[lineIdx];
+        float x = static_cast<float>(padding);
+        float baselineY = yOffset + line.maxAscent;
 
-        // recover the FontFamily from stored PrivateFontCollection
-        FontFamily familyLocal;
-        int retrieved = 0;
-        // populate a single FontFamily instance from pfc
-        m.pfc->GetFamilies(1, &familyLocal, &retrieved);
-        if (retrieved <= 0)
-            return E_FAIL;
+        for (auto* frag : line.fragments)
+        {
+            FontFamily family;
+            int retrieved = 0;
+            frag->pfc->GetFamilies(1, &family, &retrieved);
+            if (retrieved <= 0)
+                return E_FAIL;
+            Font font(&family, static_cast<REAL>(frag->fontPixelSize), FontStyleRegular, UnitPixel);
 
-        Font font(&familyLocal, static_cast<REAL>(r.fontPixelSize), FontStyleRegular, UnitPixel);
+            RectF layout, bound;
+            StringFormat fmt = StringFormat::GenericTypographic();
+            fmt.SetFormatFlags(StringFormatFlagsMeasureTrailingSpaces);
+            g.MeasureString(frag->text.c_str(), -1, &font, layout, &bound);
+            float width = bound.Width;
 
-        float y = static_cast<float>(padding) + (maxAscent - m.ascent);
+            int emHeight = family.GetEmHeight(FontStyleRegular);
+            int cellAscent = family.GetCellAscent(FontStyleRegular);
+            int cellDescent = family.GetCellDescent(FontStyleRegular);
+            float ascentPx = (static_cast<float>(frag->fontPixelSize) * cellAscent) / static_cast<float>(emHeight);
+            float y = baselineY - ascentPx;
 
-        BYTE a = static_cast<BYTE>((r.argbColor >> 24) & 0xFF);
-        BYTE rr = static_cast<BYTE>((r.argbColor >> 16) & 0xFF);
-        BYTE gg = static_cast<BYTE>((r.argbColor >> 8) & 0xFF);
-        BYTE bb = static_cast<BYTE>(r.argbColor & 0xFF);
-        SolidBrush brush(Color(a, rr, gg, bb));
+            BYTE a = static_cast<BYTE>((frag->argbColor >> 24) & 0xFF);
+            BYTE rr = static_cast<BYTE>((frag->argbColor >> 16) & 0xFF);
+            BYTE gg = static_cast<BYTE>((frag->argbColor >> 8) & 0xFF);
+            BYTE bb = static_cast<BYTE>(frag->argbColor & 0xFF);
+            SolidBrush brush(Color(a, rr, gg, bb));
 
-        StringFormat fmt = StringFormat::GenericTypographic();
-        fmt.SetFormatFlags(StringFormatFlagsMeasureTrailingSpaces);
+            RectF layoutRect(x, y, width, static_cast<REAL>(bmpH - padding * 2));
+            g.DrawString(frag->text.c_str(), -1, &font, layoutRect, &fmt, &brush);
 
-        RectF layoutRect(x, y, m.width, static_cast<REAL>(bmpH - padding * 2));
-        Status st = g.DrawString(r.text.c_str(), -1, &font, layoutRect, &fmt, &brush);
-        x += m.width;
+            x += width;
+        }
+        yOffset += line.maxAscent + line.maxDescent;
     }
 
     Rect lockRect(0, 0, bmpW, bmpH);

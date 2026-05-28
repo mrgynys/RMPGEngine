@@ -51,6 +51,9 @@ namespace RMPG
 		void SetTintIntensity(float intensity);
 		float GetTintIntensity() const;
 
+		int renderOrder = 0;
+		bool depthEnabled = true;
+
 	public:
 		VertexBuffer<Vertex> vertexBuffer;
 		Texture2d* texture = nullptr;

@@ -1,6 +1,9 @@
 #pragma once
 #include "Engine.h"
 #include "Config.h"
+#include "Console.h"
+
+bool debug_flag = false;
 
 class Test : public Engine
 {
@@ -43,33 +46,48 @@ public:
 
 		static auto t = gfx.AddTexture(L"Data\\Textures\\green_button.png");
 		static auto qw = gfx.AddObject(3.0f, 0.6f, 0.0f, t);
-
+		//gfx.GetObjectPtr(qw)->depthEnabled = false;
+		//gfx.GetObjectPtr(qw)->renderOrder = 5;
+		
 		tex = gfx.AddTexture(L"Data\\Textures\\skeleton.png");
+		gfx.GetTexturePtr(tex)->filter = RMPG::TextureFilterMode::Point;
 		obj = gfx.AddObject(1.0f, 1.0f, 0.0f, tex);
 		gfx.GetObjectPtr(obj)->SetAtlas(4.0f, 1.0f);
-
+		
 		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 64, 0xFF00FF00u });
 		runs.push_back({ L"0", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 64, 0xFFFFFFFFu });
 		txt = gfx.AddStyledTextObject(runs, 0.0f, 0.003f);
 		gfx.GetObjectPtr(txt)->texture->filter = RMPG::TextureFilterMode::Linear;
-
+		
 		static auto o = gfx.AddObject(0.5f, 0.5f, -0.01f, tex);
 		gfx.GetObjectPtr(o)->SetAtlas(4.0f, 1.0f);
 		gfx.GetObjectPtr(o)->SetMatrix(XMMatrixTranslation(1.0f, 0.0f, 0.0f));
-
+		
 		grp = gfx.CreateGroup();
 		gfx.AddObjectToGroup(grp, qw);
 		gfx.AddObjectToGroup(grp, o);
-
+		
 		newtxt = gfx.AddTextObjectFromFontFile(RMPG::ttf(RMPG::FONTS::LORA_REGULAR), L"hello, world!\nMaybe I was talking about some cool shit but can u give me the whiskey on da freaking rocks?\nqwe", 64, 0, 0.01f);
 		gfx.GetObjectPtr(newtxt)->texture->filter = RMPG::TextureFilterMode::Linear;
-
+		
 		RMPG::SoundID ssid1 = audio.LoadWav(L"Data/Sounds/shieldL.wav");
 		RMPG::SoundID ssid2 = audio.LoadWav(L"Data/Sounds/restA.wav");
 		RMPG::EffectID efid1 = audio.AddEffect(ssid1);
 		audio.PlayAfx(efid1);
 		RMPG::EffectID efid2 = audio.AddEffect(ssid2);
 		audio.PlayAfx(efid2);
+
+		if (debug_flag)
+		{
+			RMPG::TextureID cuiBgTx = gfx.AddTexture(L"Data/Textures/cui_bg.png");
+			gfx.GetTexturePtr(cuiBgTx)->filter = RMPG::TextureFilterMode::Point;
+			RMPG::TextureID cuiInputBoxTx = gfx.AddTexture(L"Data/Textures/cui_input_box.png");
+			gfx.GetTexturePtr(cuiInputBoxTx)->filter = RMPG::TextureFilterMode::Point;
+
+			cui.Initialize(this, cuiInputBoxTx, cuiBgTx, RMPG::FONTS::LORA_REGULAR);
+
+			cui.AddCommand({ L"hello", RMPG::Args({L"name"}), L"saluting to someone"});
+		}
 
 		return true;
 	}
@@ -85,108 +103,107 @@ public:
 
 	void Update() override
 	{
-		{
-			MousePoint mp = mouse.GetPos();
-			static int prevHovered = -1;
-			std::vector<RMPG::ObjectID> hovered = gfx.PickObjectsAt(mp.x, mp.y);
-			if (!hovered.empty())
-			{
-				int nearestHovered = hovered.back();
-				if (nearestHovered != prevHovered)
-				{
-					std::string outstrUnhover = "\nUnhovered: ";
-					outstrUnhover += std::to_string(prevHovered);
-					std::string outstrHover = "\nHovered: ";
-					outstrHover += std::to_string(nearestHovered);
-					OutputDebugStringA(outstrUnhover.c_str());
-					OutputDebugStringA(outstrHover.c_str());
-
-					//if (prevHovered == 0) gfx.objects[ido1]->SetCol(0.0f);
-					//else if (prevHovered == 2) gfx.objects[ido3]->SetCol(0.0f);
-
-					//if (hovered == 0) gfx.objects[ido1]->SetCol(1.0f);
-					//else if (hovered == 1 && mouse.IsLeftDown()) this->rotate = 0;
-					//else if (hovered == 2) gfx.objects[ido3]->SetCol(1.0f);
-
-					prevHovered = nearestHovered;
-				}
-			}
-		}
-
-		if (keyboard.KeyIsPressed('Q'))
-		{
-			render_window.SetFullScreen(false);
-			gfx.SetFullScreen(false);
-			render_window.SetWindowSize(800, 600);
-			gfx.Resize(800, 600);
-			cfg.SetInt(L"Window", L"Width", 800);
-			cfg.SetInt(L"Window", L"Height", 600);
-			cfg.SetInt(L"Window", L"Fullscreen", 0);
-			cfg.SetInt(L"Window", L"Windowed", 0);
-		}
-		if (keyboard.KeyIsPressed('W'))
-		{
-			render_window.SetFullScreen(false);
-			gfx.SetFullScreen(false);
-			render_window.SetWindowSize(1000, 500);
-			gfx.Resize(1000, 500);
-			cfg.SetInt(L"Window", L"Width", 1000);
-			cfg.SetInt(L"Window", L"Height", 500);
-			cfg.SetInt(L"Window", L"Fullscreen", 0);
-			cfg.SetInt(L"Window", L"Windowed", 0);
-		}
-		if (keyboard.KeyIsPressed('E'))
-		{
-			render_window.SetFullScreen(false);
-			gfx.SetFullScreen(false);
-			render_window.SetWindowSize(400, 300);
-			gfx.Resize(400, 300);
-			cfg.SetInt(L"Window", L"Width", 400);
-			cfg.SetInt(L"Window", L"Height", 300);
-			cfg.SetInt(L"Window", L"Fullscreen", 0);
-			cfg.SetInt(L"Window", L"Windowed", 0);
-		}
-		if (keyboard.KeyIsPressed('R'))
-		{
-			render_window.SetFullScreen(true);
-			gfx.SetFullScreen(true);
-			render_window.SetWindowSize(1366, 768);
-			gfx.Resize(1366, 768);
-			cfg.SetInt(L"Window", L"Width", 1366);
-			cfg.SetInt(L"Window", L"Height", 768);
-			cfg.SetInt(L"Window", L"Fullscreen", 1);
-			cfg.SetInt(L"Window", L"Windowed", 1);
-		}
-		if (keyboard.KeyIsPressed('A'))
-		{
-			gfx.SetVSync(true);
-		}
-		if (keyboard.KeyIsPressed('S'))
-		{
-			gfx.SetVSync(false);
-		}
-		if (keyboard.KeyIsPressed('D'))
-		{
-			if (gfx.ObjectExists(obj))
-			{
-				gfx.RemoveObject(obj);
-			}
-
-			/*if (useObjects)
-			{
-				gfx.RemoveObject(idt2);
-				useObjects = false;
-			}*/
-			//ido1 = gfx.AddObject(1.0f, 1.0f, 0.0f, gfx.textures[idtex1].get());
-		}
+		//{
+		//	MousePoint mp = mouse.GetPos();
+		//	static int prevHovered = -1;
+		//	std::vector<RMPG::ObjectID> hovered = gfx.PickObjectsAt(mp.x, mp.y);
+		//	if (!hovered.empty())
+		//	{
+		//		int nearestHovered = hovered.back();
+		//		if (nearestHovered != prevHovered)
+		//		{
+		//			std::string outstrUnhover = "\nUnhovered: ";
+		//			outstrUnhover += std::to_string(prevHovered);
+		//			std::string outstrHover = "\nHovered: ";
+		//			outstrHover += std::to_string(nearestHovered);
+		//			OutputDebugStringA(outstrUnhover.c_str());
+		//			OutputDebugStringA(outstrHover.c_str());
+		//
+		//			//if (prevHovered == 0) gfx.objects[ido1]->SetCol(0.0f);
+		//			//else if (prevHovered == 2) gfx.objects[ido3]->SetCol(0.0f);
+		//
+		//			//if (hovered == 0) gfx.objects[ido1]->SetCol(1.0f);
+		//			//else if (hovered == 1 && mouse.IsLeftDown()) this->rotate = 0;
+		//			//else if (hovered == 2) gfx.objects[ido3]->SetCol(1.0f);
+		//
+		//			prevHovered = nearestHovered;
+		//		}
+		//	}
+		//}
+		//
+		//if (keyboard.KeyIsPressed('Q'))
+		//{
+		//	render_window.SetFullScreen(false);
+		//	gfx.SetFullScreen(false);
+		//	render_window.SetWindowSize(800, 600);
+		//	gfx.Resize(800, 600);
+		//	cfg.SetInt(L"Window", L"Width", 800);
+		//	cfg.SetInt(L"Window", L"Height", 600);
+		//	cfg.SetInt(L"Window", L"Fullscreen", 0);
+		//	cfg.SetInt(L"Window", L"Windowed", 0);
+		//}
+		//if (keyboard.KeyIsPressed('W'))
+		//{
+		//	render_window.SetFullScreen(false);
+		//	gfx.SetFullScreen(false);
+		//	render_window.SetWindowSize(1000, 500);
+		//	gfx.Resize(1000, 500);
+		//	cfg.SetInt(L"Window", L"Width", 1000);
+		//	cfg.SetInt(L"Window", L"Height", 500);
+		//	cfg.SetInt(L"Window", L"Fullscreen", 0);
+		//	cfg.SetInt(L"Window", L"Windowed", 0);
+		//}
+		//if (keyboard.KeyIsPressed('E'))
+		//{
+		//	render_window.SetFullScreen(false);
+		//	gfx.SetFullScreen(false);
+		//	render_window.SetWindowSize(400, 300);
+		//	gfx.Resize(400, 300);
+		//	cfg.SetInt(L"Window", L"Width", 400);
+		//	cfg.SetInt(L"Window", L"Height", 300);
+		//	cfg.SetInt(L"Window", L"Fullscreen", 0);
+		//	cfg.SetInt(L"Window", L"Windowed", 0);
+		//}
+		//if (keyboard.KeyIsPressed('R'))
+		//{
+		//	render_window.SetFullScreen(true);
+		//	gfx.SetFullScreen(true);
+		//	render_window.SetWindowSize(1366, 768);
+		//	gfx.Resize(1366, 768);
+		//	cfg.SetInt(L"Window", L"Width", 1366);
+		//	cfg.SetInt(L"Window", L"Height", 768);
+		//	cfg.SetInt(L"Window", L"Fullscreen", 1);
+		//	cfg.SetInt(L"Window", L"Windowed", 1);
+		//}
+		//if (keyboard.KeyIsPressed('A'))
+		//{
+		//	gfx.SetVSync(true);
+		//}
+		//if (keyboard.KeyIsPressed('S'))
+		//{
+		//	gfx.SetVSync(false);
+		//}
+		//if (keyboard.KeyIsPressed('D'))
+		//{
+		//	if (gfx.ObjectExists(obj))
+		//	{
+		//		gfx.RemoveObject(obj);
+		//	}
+		//
+		//	/*if (useObjects)
+		//	{
+		//		gfx.RemoveObject(idt2);
+		//		useObjects = false;
+		//	}*/
+		//	//ido1 = gfx.AddObject(1.0f, 1.0f, 0.0f, gfx.textures[idtex1].get());
+		//}
 
 		static float redLayout = 0.5f;
-		//static float
 		if (mouse.GetWheelDelta() < 0)
 		{
 			redLayout -= 0.1f;
 			if (redLayout < 0.0f) redLayout = 0.0f;
-
+		
 		}
 		if (mouse.GetWheelDelta() > 0)
 		{
@@ -194,14 +211,71 @@ public:
 			if (redLayout > 1.0f) redLayout = 1.0f;
 		}
 		gfx.SetObjectTintColor(obj, XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), redLayout);
-
+		
+		
+		
 		mouse.ResetWheelDelta();
-
+		
 		runs[1].text = std::to_wstring(gfx.GetFps());
 		gfx.UpdateStyledTextObject(txt, runs);
 		float q = gfx.GetObjectPtr(txt)->GetWidth();
 		float w = gfx.GetObjectPtr(txt)->GetHeight();
 		gfx.GetObjectPtr(txt)->SetMatrix(XMMatrixTranslation(gfx.GetTopLeftWorldCoord().x + (q / 2), gfx.GetTopLeftWorldCoord().y - (w / 2), 0.0f));
+
+		if (debug_flag)
+		{
+			static bool flagF1 = false;
+			if (keyboard.KeyIsPressed(VK_F1))
+			{
+				if (!flagF1)
+				{
+					flagF1 = true;
+					if (cui.IsOpen())
+					{
+						cui.Close();
+					}
+					else
+					{
+						cui.Open();
+					}
+				}
+			}
+			else
+			{
+				flagF1 = false;
+			}
+
+			if (cui.IsOpen())
+			{
+				cui.Update(6);
+				while (!cui.CommandBufferIsEmpty())
+				{
+					RMPG::Args args = cui.GetInput();
+					if (args[0] == L"hello")
+					{
+						if (args.size() == 2)
+						{
+							cui.ShowMessage(L"Hello, " + args[1] + L"!");
+						}
+						else
+						{
+							cui.ShowError(L"Invalid arguments");
+						}
+					}
+					else
+					{
+						cui.ShowError(L"Unknown command: " + args[0]);
+					}
+				}
+			}
+			else
+			{
+				while (!keyboard.CharBufferIsEmpty())
+				{
+					unsigned char c = keyboard.ReadChar();
+				}
+			}
+		}
 	}
 
 	void FixedUpdate() override
@@ -238,6 +312,8 @@ private:
 	RMPG::GroupID grp;
 
 	RMPG::ObjectID newtxt;
+
+	RMPG::Console cui;
 
 	//// objects identificators
 	//int ido1;

@@ -1157,6 +1157,18 @@ bool RMPG::Graphics::InitializeDirectX(HWND hwnd)
 		return false;
 	}
 
+	D3D11_DEPTH_STENCIL_DESC depthDisabledDesc;
+	ZeroMemory(&depthDisabledDesc, sizeof(depthDisabledDesc));
+	depthDisabledDesc.DepthEnable = false;
+	depthDisabledDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	depthDisabledDesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+
+	hr = this->device->CreateDepthStencilState(&depthDisabledDesc, this->depthDisabledState.GetAddressOf());
+	if (FAILED(hr)) {
+		ErrorLogger::Log(hr, "Failed to create depth-disabled state.");
+		return false;
+	}
+
 	D3D11_VIEWPORT viewport;
 	ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
 
@@ -1428,7 +1440,8 @@ void RMPG::Graphics::RenderDepthPass()
 
 	for (const auto& [objectId, obj] : objects)
 	{
-		RenderObjectForDepth(objectId, obj.get());
+		if (obj->depthEnabled)
+			RenderObjectForDepth(objectId, obj.get());
 	}
 }
 
@@ -1443,8 +1456,35 @@ void RMPG::Graphics::RenderColorPass()
 
 	for (const auto& [objectId, obj] : objects)
 	{
-		RenderObject(objectId, obj.get());
+		if (obj->depthEnabled)
+			RenderObject(objectId, obj.get());
 	}
+
+	std::vector<std::pair<ObjectID, Object2d*>> uiObjects;
+	for (const auto& [objectId, obj] : objects) {
+		if (!obj->depthEnabled) {
+			uiObjects.emplace_back(objectId, obj.get());
+		}
+	}
+
+	std::sort(uiObjects.begin(), uiObjects.end(),
+		[](const auto& a, const auto& b) {
+			return a.second->renderOrder < b.second->renderOrder;
+		});
+
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> oldDepthState;
+	UINT oldStencilRef;
+	this->deviceContext->OMGetDepthStencilState(&oldDepthState, &oldStencilRef);
+
+	this->deviceContext->OMSetDepthStencilState(this->depthDisabledState.Get(), 0);
+
+	for (const auto& [objectId, obj] : uiObjects) {
+		if (!obj->depthEnabled) {
+			RenderObject(objectId, obj);
+		}
+	}
+
+	this->deviceContext->OMSetDepthStencilState(oldDepthState.Get(), oldStencilRef);
 }
 
 void RMPG::Graphics::RenderObjectForDepth(ObjectID id, Object2d* obj)
