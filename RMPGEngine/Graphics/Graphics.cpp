@@ -1499,6 +1499,11 @@ void RMPG::Graphics::RenderObjectForDepth(ObjectID id, Object2d* obj)
 		if (it->first == id) break;
 	}
 
+	if (obj->texture->filter == RMPG::TextureFilterMode::Linear)
+		this->deviceContext->PSSetSamplers(0, 1, this->linearSamplerState.GetAddressOf());
+	else
+		this->deviceContext->PSSetSamplers(0, 1, this->pointSamplerState.GetAddressOf());
+
 	this->drawBuffer.data.objectIndex = index;
 	this->drawBuffer.data.uvOffset = XMFLOAT2(obj->GetCol() * obj->GetTileWidth(), obj->GetRow() * obj->GetTileHeight());
 	this->drawBuffer.data.uvScale = XMFLOAT2(obj->GetScaleU(), obj->GetScaleV());

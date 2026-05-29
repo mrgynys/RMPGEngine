@@ -29,5 +29,6 @@ float4 main(PS_INPUT input): SV_TARGET
     float originalAlpha = pixelColor.a;
     pixelColor.rgb = lerp(pixelColor.rgb, tintColor.rgb, tintIntensity);
     pixelColor.a = originalAlpha * tintColor.a;
+    pixelColor.rgb *= pixelColor.a;
     return pixelColor;
 }

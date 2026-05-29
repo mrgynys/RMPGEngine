@@ -48,10 +48,11 @@ public:
 		static auto qw = gfx.AddObject(3.0f, 0.6f, 0.0f, t);
 		//gfx.GetObjectPtr(qw)->depthEnabled = false;
 		//gfx.GetObjectPtr(qw)->renderOrder = 5;
+		gfx.GetObjectPtr(qw)->texture->filter = RMPG::TextureFilterMode::Linear;
 		
 		tex = gfx.AddTexture(L"Data\\Textures\\skeleton.png");
 		gfx.GetTexturePtr(tex)->filter = RMPG::TextureFilterMode::Point;
-		obj = gfx.AddObject(1.0f, 1.0f, 0.0f, tex);
+		obj = gfx.AddObject(1.0f, 1.0f, -0.1f, tex);
 		gfx.GetObjectPtr(obj)->SetAtlas(4.0f, 1.0f);
 		
 		runs.push_back({ L"FPS: ", RMPG::ttf(RMPG::FONTS::LORA_REGULAR), 64, 0xFF00FF00u });

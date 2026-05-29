@@ -10,13 +10,17 @@ struct PS_INPUT
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
+    float depthValue;
     float4 textureColor = objTexture.Sample(objSamplerState, input.outTexCoord);
     
-    if (textureColor.a < 0.5f)
+    if (textureColor.a > 0.8f)
+    {
+        depthValue = input.depthPosition.z / input.depthPosition.w;
+    }
+    else
     {
         discard;
     }
     
-    float depthValue = input.depthPosition.z / input.depthPosition.w;
     return float4(depthValue, depthValue, depthValue, 1.0f);
 }
