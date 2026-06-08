@@ -5,10 +5,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	_In_ LPWSTR	lpCmdLine,
 	_In_ int	nCmdShow)
 {
-	HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);//CoInitialize(NULL);
+	HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 	if (FAILED(hr))
 	{
-		ErrorLogger::Log(hr, "Failed to call CoInitialize");
+		ErrorLogger::Log(hr, "Failed to call CoInitializeEx");
 		return -1;
 	}
 

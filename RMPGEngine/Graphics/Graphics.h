@@ -51,6 +51,8 @@ namespace RMPG
 		bool SetFullScreen(bool fullscreen);
 		void SetVSync(bool vsync);
 
+		const std::vector<XMUINT2>& GetFormatModes();
+
 		std::vector<ObjectID> PickObjectsAt(int mouseX, int mouseY);
 
 		XMFLOAT3 ScreenToWorldOnPlane(int mouseX, int mouseY, float planeZ = 0.0f);
@@ -189,5 +191,6 @@ namespace RMPG
 		std::map<ObjectID, TextureID> objectToTexture;
 		std::map<TextureID, std::set<ObjectID>> textureUsage;
 
+		std::vector<XMUINT2> modes;
 	};
 };

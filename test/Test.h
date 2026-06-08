@@ -90,6 +90,12 @@ public:
 			cui.AddCommand({ L"hello", RMPG::Args({L"name"}), L"saluting to someone"});
 		}
 
+		for (const auto& mode : gfx.GetFormatModes())
+		{
+			std::string outstr = "\n" + std::to_string(mode.x) + "x" + std::to_string(mode.y);
+			OutputDebugStringA(outstr.c_str());
+		}
+
 		return true;
 	}
 

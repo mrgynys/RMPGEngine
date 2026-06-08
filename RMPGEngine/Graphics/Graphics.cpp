@@ -186,6 +186,11 @@ void RMPG::Graphics::SetVSync(bool vsync)
 		this->vsync_on = 0;
 }
 
+const std::vector<XMUINT2>& RMPG::Graphics::GetFormatModes()
+{
+	return this->modes;
+}
+
 // last object ".back()" will be nearest
 std::vector<RMPG::ObjectID> RMPG::Graphics::PickObjectsAt(int mouseX, int mouseY)
 {
@@ -1220,6 +1225,68 @@ bool RMPG::Graphics::InitializeDirectX(HWND hwnd)
 
 	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	this->deviceContext->OMSetBlendState(this->blendState.Get(), blendFactor, 0xffffffff);
+
+	IDXGIDevice* pDXGIDevice = nullptr;
+	hr = this->device->QueryInterface(__uuidof(IDXGIDevice), (void**)&pDXGIDevice);
+	if (FAILED(hr))
+	{
+		ErrorLogger::Log(hr, "Failed to get IDXGIDevice.");
+		return false;
+	}
+
+	IDXGIAdapter* pAdapter = nullptr;
+	hr = pDXGIDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&pAdapter);
+	if (FAILED(hr))
+	{
+		ErrorLogger::Log(hr, "Failed to get IDXGIAdapter.");
+		pDXGIDevice->Release();
+		return false;
+	}
+
+	IDXGIOutput* pOutput = nullptr;
+	hr = pAdapter->EnumOutputs(0, &pOutput);
+	if (FAILED(hr))
+	{
+		ErrorLogger::Log(hr, "Failed to get IDXGIOutput.");
+		pAdapter->Release();
+		pDXGIDevice->Release();
+		return false;
+	}
+
+	UINT numModes = 0;
+	DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	hr = pOutput->GetDisplayModeList(format, 0, &numModes, nullptr);
+	if (FAILED(hr) || numModes == 0)
+	{
+		ErrorLogger::Log(hr, "Format modes not found.");
+		pOutput->Release();
+		pAdapter->Release();
+		pDXGIDevice->Release();
+		return false;
+	}
+
+	std::vector<DXGI_MODE_DESC> modeDescs(numModes);
+	hr = pOutput->GetDisplayModeList(format, 0, &numModes, modeDescs.data());
+	if (FAILED(hr))
+	{
+		ErrorLogger::Log(hr, "Failed to get a modes list.");
+		pOutput->Release();
+		pAdapter->Release();
+		pDXGIDevice->Release();
+		return false;
+	}
+
+	for (const auto& mode : modeDescs)
+	{
+		if (modes.size() < 1)
+			this->modes.push_back({ mode.Width, mode.Height });
+		else if (mode.Width != modes.back().x and mode.Height != modes.back().y)
+			this->modes.push_back({ mode.Width, mode.Height });
+	}
+
+	pOutput->Release();
+	pAdapter->Release();
+	pDXGIDevice->Release();
 
 	return true;
 }
