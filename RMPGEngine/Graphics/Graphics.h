@@ -100,6 +100,7 @@ namespace RMPG
 
 		GroupID CreateGroup();
 		bool DestroyGroup(GroupID groupId);
+		bool DestroyAllGroups();
 		bool AddObjectToGroup(GroupID groupId, ObjectID objectId);
 		bool RemoveObjectFromGroup(GroupID groupId, ObjectID objectId);
 		bool RemoveObjectFromAllGroups(ObjectID objectId);

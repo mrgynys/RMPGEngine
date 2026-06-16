@@ -671,6 +671,8 @@ bool RMPG::Graphics::RemoveAllObjects()
 	dynamicTextMeta.clear();
 	textureUsage.clear();
 
+	nextObjectId = 0;
+
 	return true;
 }
 
@@ -722,6 +724,8 @@ bool RMPG::Graphics::RemoveAllTextures()
 
 	textures.clear();
 	textureUsage.clear();
+
+	nextTextureId = 0;
 
 	return true;
 }
@@ -906,6 +910,21 @@ bool RMPG::Graphics::DestroyGroup(GroupID groupId)
 		return false;
 
 	groups.erase(it);
+
+	return true;
+}
+
+bool RMPG::Graphics::DestroyAllGroups()
+{
+	for (auto& [id, group] : groups)
+	{
+		groups.erase(id);
+	}
+
+	groups.clear();
+
+	nextGroupId = 0;
+
 	return true;
 }
 
